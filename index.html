@@ -49,14 +49,14 @@ button{transition:transform .1s}button:active{transform:scale(.95)}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 const A=document.getElementById('app'),SU='♠♥♦♣',HN=['Hohe Karte','Paar','Zwei Paare','Drilling','Straße','Flush','Full House','Vierling','Straight Flush'];
-let db,uid,P,T=[],PL=[],cur=null,raise=0,err='',rs=false;
+let db,uid,P,T=[],PL=[],cur=null,raise=0,err='',rs=false,TL=false,busy=false,HI=[];
 const E=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const RK=r=>({11:'B',12:'D',13:'K',14:'A'}[r]||r),fm=n=>(n>0?'+':'')+n,cl=o=>JSON.parse(JSON.stringify(o));
 const SH={},PV={};let LV='';
 function an(k,d,f){const n=Date.now();if(!(k in SH))SH[k]=n+(d||0);const e=n-SH[k];return e<900?` n${f?' fl':''}" style="animation-delay:${-e}ms`:''}
 const cd=(c,k,d,f)=>{const a=k?an(k,d,f):'';return c==null?`<i class="c bk${a}"></i>`:`<i class="c${[1,2].includes(c/13|0)?' r':''}${a}">${RK(c%13+2)}<b>${SU[c/13|0]}</b></i>`};
 function anim(){document.querySelectorAll('.num').forEach(e=>{const k=e.dataset.k,v=+e.dataset.v,f=PV[k]??v;PV[k]=v;if(f==v)return;const t0=performance.now();(function st(t){const p=Math.min(1,(t-t0)/600);e.textContent=Math.round(f+(v-f)*p);if(p<1)requestAnimationFrame(st)})(t0)})}
-function wk(){const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+3-(d.getDay()+6)%7);const y=d.getFullYear(),j=new Date(y,0,4);return y+'-KW'+(1+Math.round(((d-j)/864e5-3+(j.getDay()+6)%7)/7))}
+function wk(){const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+3-(d.getDay()+6)%7);const y=d.getFullYear(),j=new Date(y,0,4);return y+'-KW'+String(1+Math.round(((d-j)/864e5-3+(j.getDay()+6)%7)/7)).padStart(2,'0')}
 /* ---------- Hand-Auswertung ---------- */
 function ev(c){const r=c.map(x=>x%13+2).sort((a,b)=>b-a),fl=c.every(x=>(x/13|0)==(c[0]/13|0)),u=[...new Set(r)];let st=0;
  if(u.length==5){if(u[0]-u[4]==4)st=u[0];else if(u[0]==14&&u[1]==5)st=5}
@@ -146,6 +146,17 @@ setInterval(()=>{const t=cur&&myT();if(!t||!t.dl||!['pre','flop','turn','river']
  if(s.ph!='show'){if(live(s).length<2)award(s);else if(s.seats[s.turn].f){const nx=nextActor(s,s.turn);if(nx>=0){s.turn=nx;s.dl=Date.now()+3e4}else advance(s)}}s.log.push(x.name+' wurde wegen Inaktivität entfernt');s.log=s.log.slice(-6);
  if(s.seats.some(y=>!y.left))save(s);else db.doc('tables/'+t.id).delete();
  db.doc('players/'+xid).update({chips:firebase.firestore.FieldValue.increment(back),table:null,kicked:true})}},1000);
+/* ---------- Wochenabschluss ---------- */
+function chkWeek(){
+ if(!P||!TL||P.week===wk()||busy)return;busy=true;cur=null;
+ const me={...P,id:uid},profit=pr(me),chips=val(me),t=T.find(x=>x.id==P.table),i=t?t.seats.findIndex(x=>x.id==uid&&!x.left):-1;
+ if(i>=0){const s=cl(t),x=s.seats[i],inHand=['pre','flop','turn','river'].includes(s.ph);x.stack=0;x.left=true;
+  if(inHand&&!x.f){x.f=true;if(s.turn==i||live(s).length<2)advance(s)}
+  if(s.seats.some(y=>!y.left))save(s);else db.doc('tables/'+t.id).delete()}
+ db.doc('history/'+P.week+'_'+uid).set({week:P.week,uid,name:P.name,profit,chips,rebuys:P.rebuys||0});
+ upd({chips:1000,rebuys:0,week:wk(),table:null})}
+function hist(){if(!HI.length)return '';const w={};HI.forEach(h=>(w[h.week]=w[h.week]||[]).push(h));
+ return '<div class="k"><h2>Vergangene Wochen</h2>'+Object.keys(w).sort().reverse().map((k,i)=>`<details${i?'':' open'}><summary><b>${k}</b> · Sieger: ${E(w[k].sort((a,b)=>b.profit-a.profit)[0].name)}</summary><table>${w[k].map((h,j)=>`<tr><td>${j+1}. ${E(h.name)}</td><td>${h.chips}</td><td>${pc(h.profit)}</td></tr>`).join('')}</table></details>`).join('')+'</div>'}
 /* ---------- Chat ---------- */
 let CH=[];
 function msgs(){const k=cur||'lobby';return CH.filter(m=>m.t==k).slice(-40).map(m=>`<div class="m${m.u==uid?' me':''}"><b>${E(m.n)}:</b> ${E(m.m)}</div>`).join('')||'<span class="mu">Noch keine Nachrichten.</span>'}
@@ -163,7 +174,7 @@ function lobby(){
  const rk=[...PL].sort((a,b)=>pr(b)-pr(a)).map((p,i)=>`<tr><td>${i+1}. ${E(p.name)}</td><td>${val(p)}</td><td>${pc(pr(p))}</td></tr>`).join('');
  return `<div class="k"><h2>Lobbys</h2>${tb||'<span class="mu">Noch keine Lobby – erstelle eine.</span>'}
  <div class="r" style="margin-top:8px"><input type="text" id="tn" placeholder="Name der neuen Lobby" maxlength="20" style="flex:1"><button onclick="mk()">Erstellen</button></div></div>
- <div class="k"><div class="r sp"><h2>Rangliste (Woche)</h2><button onclick="rebuy()">Rebuy +1000</button></div><table><tr class="mu"><td>Spieler</td><td>Chips</td><td>Plus/Minus</td></tr>${rk}</table></div>${chatBox()}`}
+ <div class="k"><div class="r sp"><h2>Rangliste (Woche)</h2><button onclick="rebuy()">Rebuy +1000</button></div><table><tr class="mu"><td>Spieler</td><td>Chips</td><td>Plus/Minus</td></tr>${rk}</table></div>${hist()}${chatBox()}`}
 function table(t){
  const i=mySeat(t),me=t.seats[i],S=t.seats.filter(x=>!x.left),act=['pre','flop','turn','river'].includes(t.ph);
  const myTurn=act&&me&&t.seats[t.turn]===me;
@@ -190,6 +201,7 @@ function draw(){
  const ae=document.activeElement,keep=ae&&ae.type=='text'&&ae.id?{id:ae.id,v:ae.value,p:ae.selectionStart}:null;
  if(!db)return;if(P===undefined){A.textContent='Lade …';return}
  if(!P){A.textContent='Lade …';return}
+ if(P.week!==wk()){A.textContent='Neue Woche wird vorbereitet …';return}
  if(cur&&!myT())cur=null;
  if(!cur&&P.table&&T.length&&!rs){const t=T.find(x=>x.id==P.table);if(t&&mySeat(t)>=0)cur=t.id;rs=true}
  const t=myT(),vw=t?'t':'l';A.className='w'+(vw!=LV?' fi':'');LV=vw;A.innerHTML=head()+(t?table(t):lobby());anim();{const cl=document.getElementById('cl');if(cl)cl.scrollTop=cl.scrollHeight}
@@ -202,10 +214,11 @@ function start(n){
   if(!s.exists){P=undefined;db.doc('players/'+uid).set({name:n,chips:1000,rebuys:0,week:wk(),table:null});return}
   P=s.data();
   if(P.kicked){cur=null;err='Du wurdest wegen Inaktivität (30 Sekunden) aus der Lobby entfernt. Deine Chips sind sicher.';upd({kicked:false})}
-  if(P.week!==wk()){P=undefined;upd({chips:1000,rebuys:0,week:wk(),table:null});return}
+  if(P.week===wk())busy=false;else{chkWeek();return}
   draw()});
- db.collection('tables').onSnapshot(s=>{T=s.docs.map(x=>({id:x.id,...x.data()}));draw()},e=>{err='Lobbys laden fehlgeschlagen: '+e.message;draw()});
+ db.collection('tables').onSnapshot(s=>{T=s.docs.map(x=>({id:x.id,...x.data()}));TL=true;chkWeek();draw()},e=>{err='Lobbys laden fehlgeschlagen: '+e.message;draw()});
  db.collection('players').onSnapshot(s=>{PL=s.docs.map(x=>({id:x.id,...x.data()}));draw()},e=>{err='Rangliste laden fehlgeschlagen: '+e.message;draw()});
+ db.collection('history').orderBy('week','desc').limit(80).onSnapshot(s=>{HI=s.docs.map(x=>x.data());draw()},e=>{});
  db.collection('chat').orderBy('ts','desc').limit(150).onSnapshot(s=>{CH=s.docs.map(x=>x.data()).reverse();drawChat()},e=>{err='Chat laden fehlgeschlagen: '+e.message;draw()});
  P=undefined;draw()}
 try{firebase.initializeApp(FB);db=firebase.firestore();
