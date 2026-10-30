@@ -44,7 +44,18 @@ button{transition:transform .1s}button:active{transform:scale(.95)}
 .fi>*{animation:fade .35s both}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .cl{max-height:190px;overflow-y:auto;font-size:.92em;display:flex;flex-direction:column;gap:3px;word-break:break-word}.m b{color:var(--ac)}.m.me b{color:#2e9e5b}.m{animation:up .25s both}
-</style></head><body><div class="w" id="app">Lade …</div>
+#toast{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);left:8px;right:8px;z-index:9;max-width:680px;margin:auto}
+.tt{background:var(--ac);color:#111;border-radius:14px;padding:12px 14px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.4);animation:fade .3s both;display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:6px}.tt button{padding:6px 10px}
+@keyframes shake{0%,100%{transform:none}15%{transform:translateX(-8px) rotate(-2deg)}30%{transform:translateX(8px) rotate(2deg)}45%{transform:translateX(-6px)}60%{transform:translateX(6px)}75%{transform:translateX(-3px)}}
+@keyframes fall{from{transform:translateY(-12vh) rotate(0);opacity:1}to{transform:translateY(112vh) rotate(340deg);opacity:.9}}
+@keyframes stamp{from{transform:scale(3) rotate(-18deg);opacity:0}60%{transform:scale(.95) rotate(-10deg);opacity:1}to{transform:scale(1) rotate(-10deg);opacity:1}}
+@keyframes out{0%,82%{opacity:1}100%{opacity:0}}
+.s{position:relative}.s.lose{background:rgba(209,73,63,.22);outline:2px solid #d1493f;filter:grayscale(.45)}.s.shk{animation:shake .7s both}
+.stp{position:absolute;left:50%;top:42%;margin-left:-38px;font-weight:900;color:#ff5a4d;border:3px solid #ff5a4d;border-radius:8px;padding:0 8px;background:rgba(0,0,0,.55);transform:rotate(-12deg);letter-spacing:2px;font-size:1.05em;animation:stamp .5s .25s both}
+#lo{position:fixed;inset:0;pointer-events:none;z-index:8;overflow:hidden;animation:out 3.2s both;background:radial-gradient(circle,rgba(209,73,63,.12),rgba(110,0,0,.6))}
+#lo b{position:absolute;top:36%;left:0;right:0;text-align:center;font-size:16vw;color:#fff;text-shadow:0 4px 24px #000;animation:stamp .6s both}
+#lo i{position:absolute;top:0;font-style:normal;font-size:8vw;animation:fall 2.4s linear both;animation-delay:var(--d)}
+</style></head><body><div class="w" id="app">Lade …</div><div id="toast"></div>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
@@ -55,6 +66,7 @@ const RK=r=>({11:'B',12:'D',13:'K',14:'A'}[r]||r),fm=n=>(n>0?'+':'')+n,cl=o=>JSO
 let OFF=0;const now=()=>Date.now()+OFF;
 async function sync(){try{const r=db.doc('clock/'+uid),a=Date.now();await r.set({t:firebase.firestore.FieldValue.serverTimestamp()});const d=await r.get({source:'server'}),b=Date.now();OFF=d.data().t.toMillis()-(a+b)/2}catch(e){}}
 const SH={},PV={};let LV='';
+const el=k=>{const n=Date.now();if(!(k in SH))SH[k]=n;return n-SH[k]};
 function an(k,d,f){const n=Date.now();if(!(k in SH))SH[k]=n+(d||0);const e=n-SH[k];return e<900?` n${f?' fl':''}" style="animation-delay:${-e}ms`:''}
 const cd=(c,k,d,f)=>{const a=k?an(k,d,f):'';return c==null?`<i class="c bk${a}"></i>`:`<i class="c${[1,2].includes(c/13|0)?' r':''}${a}">${RK(c%13+2)}<b>${SU[c/13|0]}</b></i>`};
 function anim(){document.querySelectorAll('.num').forEach(e=>{const k=e.dataset.k,v=+e.dataset.v,f=PV[k]??v;PV[k]=v;if(f==v)return;const t0=performance.now();(function st(t){const p=Math.min(1,(t-t0)/600);e.textContent=Math.round(f+(v-f)*p);if(p<1)requestAnimationFrame(st)})(t0)})}
@@ -176,6 +188,18 @@ function chkWeek(){
   tx.update(pref(uid),{chips:1000,rebuys:0,week:wk(),table:null})})}
 function hist(){if(!HI.length)return '';const w={};HI.forEach(h=>(w[h.week]=w[h.week]||[]).push(h));
  return '<div class="k"><h2>Vergangene Wochen</h2>'+Object.keys(w).sort().reverse().map((k,i)=>`<details${i?'':' open'}><summary><b>${k}</b> · Sieger: ${E(w[k].sort((a,b)=>b.profit-a.profit)[0].name)}</summary><table>${w[k].map((h,j)=>`<tr><td>${j+1}. ${E(h.name)}</td><td>${h.chips}</td><td>${pc(h.profit)}</td></tr>`).join('')}</table></details>`).join('')+'</div>'}
+/* ---------- Ping ---------- */
+let lastPing=0;const seenP=new Set();
+function toast(h,ms){const e=document.getElementById('toast'),d=document.createElement('div');d.className='tt';d.innerHTML=h;e.appendChild(d);setTimeout(()=>d.remove(),ms||12e3)}
+function ping(){const n=Date.now();if(n-lastPing<6e4){err='Bitte warte kurz, bevor du erneut benachrichtigst.';return draw()}
+ lastPing=n;err='';try{if('Notification' in window&&Notification.permission=='default')Notification.requestPermission()}catch(e){}
+ db.collection('pings').add({u:uid,n:P.name,t:cur||'lobby',ts:now()}).then(()=>toast('📣 Deine Freunde wurden benachrichtigt.',4e3)).catch(e=>{err=e.message;draw()})}
+function onPing(d){const p=d.data();if(seenP.has(d.id)||p.u==uid||now()-p.ts>9e4)return;seenP.add(d.id);
+ const tb=p.t!='lobby'&&T.some(x=>x.id==p.t);
+ toast(`<span>🃏 ${E(p.n)} spielt jetzt Poker!</span>${tb?`<button onclick="join('${E(p.t)}');this.parentNode.remove()">Beitreten</button>`:''}<button onclick="this.parentNode.remove()">✕</button>`);
+ try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}
+ try{const c=new(window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator();o.connect(c.destination);o.frequency.value=880;o.start();o.stop(c.currentTime+.18)}catch(e){}
+ try{if(document.hidden&&Notification.permission=='granted')new Notification('Poker',{body:p.n+' spielt jetzt Poker!'})}catch(e){}}
 /* ---------- Chat ---------- */
 let CH=[];
 function msgs(){const k=cur||'lobby';return CH.filter(m=>m.t==k).slice(-40).map(m=>`<div class="m${m.u==uid?' me':''}"><b>${E(m.n)}:</b> ${E(m.m)}</div>`).join('')||'<span class="mu">Noch keine Nachrichten.</span>'}
@@ -186,7 +210,7 @@ function drawChat(){const e=document.getElementById('cl');if(e){e.innerHTML=msgs
 function val(p){let v=p.chips||0;T.forEach(t=>{const x=(t.seats||[]).find(y=>y.id==p.id&&!y.left);if(x&&p.table==t.id)v+=x.stack});return v}
 const pr=p=>val(p)-1000*(1+(p.rebuys||0)),pc=n=>`<span class="${n>=0?'pl':'mi'}">${fm(n)}</span>`;
 function head(){const me=PL.find(p=>p.id==uid)||{...P,id:uid};
- return `<div class="k r sp"><div><h1>♠ ${E(P.name)}</h1><span class="mu">${wk()} · Start 1000 Chips · Rebuys: ${P.rebuys||0}</span></div>
+ return `<div class="k r sp"><div><h1>♠ ${E(P.name)}</h1><span class="mu">${wk()} · Start 1000 Chips · Rebuys: ${P.rebuys||0}</span><br><button onclick="ping()" style="margin-top:6px;padding:6px 10px">📣 Ich spiele!</button></div>
  <div style="text-align:right"><b>${val(me)} Chips</b><br>${pc(pr(me))} diese Woche</div></div>${err?`<p class="er">${E(err)}</p>`:''}`}
 function lobby(){
  const tb=T.map(t=>{const n=t.seats.filter(x=>!x.left);return `<div class="r sp" style="padding:6px 0"><div><b>${E(t.name)}</b><br><span class="mu">${n.length} Spieler: ${n.map(x=>E(x.name)).join(', ')||'leer'}</span></div><button class="p" onclick="join('${t.id}')">${P.table==t.id?'Zurück':'Beitreten'}</button></div>`}).join('');
@@ -197,10 +221,11 @@ function lobby(){
 function table(t){
  const i=mySeat(t),me=t.seats[i],S=t.seats.filter(x=>!x.left),act=['pre','flop','turn','river'].includes(t.ph);
  const myTurn=act&&me&&t.seats[t.turn]===me;
- const pot=t.seats.reduce((a,x)=>a+x.tot,0);
+ const pot=t.seats.reduce((a,x)=>a+x.tot,0),big=pot>500&&t.ph=='show'&&t.rv,lz=x=>big&&!x.f&&(x.w||0)<x.tot,ls=t.seats.filter(x=>!x.left&&lz(x));
+ const eL=me&&lz(me)?el('L'+(t.hn||0)+uid):9e9,ov=eL<3300?`<div id="lo" style="animation-delay:-${eL}ms"><b>😭 LOSER</b>${[...Array(14)].map((_,k)=>`<i style="left:${k*7+2}%;--d:${(k%5)*350-eL}ms">${k%2?'💸':'😭'}</i>`).join('')}</div>`:'';
  const seats=t.seats.map((x,k)=>{if(x.left)return '';const show=x.id==uid||(t.rv&&!x.f),hn=t.hn||0;
   const cs=x.h&&x.h.length?x.h.map((c,i)=>show&&x.id!=uid?cd(c,'r'+hn+x.id+i,i*120,1):cd(show?c:null,'h'+hn+x.id+i,k*200+i*150)).join(''):'<span class="mu">schaut zu</span>';
-  return `<div class="s${x.id==uid?' mine':''}${t.turn==k&&act?' t':''}${x.f&&t.ph!='wait'?' f':''}${x.w?' win':''}"${t.turn==k&&act?` style="animation-delay:-${Date.now()%1300}ms"`:''}><b>${E(x.name)}</b>${t.dealer==k?' <span class="db">D</span>':''}<br><span class="num" data-k="s${x.id}" data-v="${x.stack}">${x.stack}</span> Chips${x.bet?`<br><span class="bt${an('bt'+hn+t.ph+x.id+x.bet)}">● ${x.bet}</span>`:''}${x.ai?'<br>All-in':''}<br>${cs}${x.w?`<br><span class="wn${an('w'+hn+x.id)}">+${x.w}</span>`:''}</div>`}).join('');
+  return `<div class="s${x.id==uid?' mine':''}${t.turn==k&&act?' t':''}${x.f&&t.ph!='wait'?' f':''}${x.w?' win':''}${lz(x)?(el('lz'+hn+x.id)<900?' lose shk':' lose'):''}"${t.turn==k&&act?` style="animation-delay:-${Date.now()%1300}ms"`:''}><b>${E(x.name)}</b>${t.dealer==k?' <span class="db">D</span>':''}<br><span class="num" data-k="s${x.id}" data-v="${x.stack}">${x.stack}</span> Chips${x.bet?`<br><span class="bt${an('bt'+hn+t.ph+x.id+x.bet)}">● ${x.bet}</span>`:''}${x.ai?'<br>All-in':''}<br>${cs}${x.w?`<br><span class="wn${an('w'+hn+x.id)}">+${x.w}</span>`:''}${lz(x)?'<span class="stp">LOSER</span>':''}</div>`}).join('');
  const hint=me&&!me.f&&me.h.length&&t.board.length>=3&&t.ph!='wait'?`<div class="mu" style="margin-top:6px">Dein Blatt: <b>${HN[hs(me.h.concat(t.board))/15**5|0]}</b></div>`:'';
  let ctl='';
  if(myTurn){const need=t.cb-me.bet,mx=me.bet+me.stack,mn=Math.min(t.cb+t.mr,mx);raise=Math.max(mn,Math.min(raise||mn,mx));
@@ -209,8 +234,8 @@ function table(t){
  else if(me&&act)ctl=`<span class="mu">${me.f?'Du hast gefoldet.':'Warte auf '+E(t.seats[t.turn]?.name||'')+' …'}</span>`;
  const nh=me&&(t.ph=='show'||t.ph=='wait')?`<button class="p" onclick="nextHand()">${t.ph=='wait'&&!t.deck.length?'Spiel starten':'Nächste Runde'}</button> `:'';
  const rem=t.dl?Math.max(0,(t.dl-now())/1e3):30,pct=Math.min(100,rem/.3),ro=t.ph=='show'?t.ro||[]:[],b=[0,1,2,3,4].map(k=>t.board[k]!=null?cd(t.board[k],'b'+(t.hn||0)+'_'+t.board[k],(k<3?k:0)*130,1):ro[k-t.board.length]!=null?cd(ro[k-t.board.length],'g'+(t.hn||0)+'_'+ro[k-t.board.length],(k-t.board.length)*150,1).replace('class="c','class="c gh'):'<i class="c em"></i>').join('');
- return `<div class="k r sp"><h2>${E(t.name)}</h2><div class="r"><button onclick="rebuy()">Rebuy +1000</button><button onclick="leave()">Verlassen</button></div></div>
- <div class="felt"><div class="mu" style="color:#cde">Pot <span class="num" data-k="pot" data-v="${pot}">${pot}</span>${act&&t.dl?` · ⏱ <span id="cd">30</span>s<div class="tb"><i id="tb" class="${rem<10?'lo':''}" style="width:${pct}%"></i></div>`:''}</div>${b}<div style="margin-top:6px;min-height:1.4em">${E(t.msg||'')}</div></div>
+ return `${ov}<div class="k r sp"><h2>${E(t.name)}</h2><div class="r"><button onclick="rebuy()">Rebuy +1000</button><button onclick="leave()">Verlassen</button></div></div>
+ <div class="felt"><div class="mu" style="color:#cde">Pot <span class="num" data-k="pot" data-v="${pot}">${pot}</span>${act&&t.dl?` · ⏱ <span id="cd">30</span>s<div class="tb"><i id="tb" class="${rem<10?'lo':''}" style="width:${pct}%"></i></div>`:''}</div>${b}<div style="margin-top:6px;min-height:1.4em">${E(t.msg||'')}</div>${ls.length?`<div style="margin-top:4px">💸 Großer Pot! ${ls.map(x=>E(x.name)).join(', ')} verliert.</div>`:''}</div>
  <div class="sg" style="margin-top:10px">${seats}</div>
  <div class="k">${nh}${ctl}${hint}</div>
  <div class="k mu">${(t.log||[]).slice().reverse().map(E).join('<br>')}</div>
@@ -239,6 +264,7 @@ function start(n){
  db.collection('players').onSnapshot(s=>{PL=s.docs.map(x=>({id:x.id,...x.data()}));draw()},e=>{err='Rangliste laden fehlgeschlagen: '+e.message;draw()});
  db.collection('history').orderBy('week','desc').limit(80).onSnapshot(s=>{HI=s.docs.map(x=>x.data());draw()},e=>{});
  db.collection('chat').orderBy('ts','desc').limit(150).onSnapshot(s=>{CH=s.docs.map(x=>x.data()).reverse();drawChat()},e=>{err='Chat laden fehlgeschlagen: '+e.message;draw()});
+ db.collection('pings').orderBy('ts','desc').limit(5).onSnapshot(s=>s.docChanges().forEach(c=>{if(c.type=='added')onPing(c.doc)}),e=>{});
  sync();setInterval(sync,3e5);
  P=undefined;draw()}
 try{firebase.initializeApp(FB);db=firebase.firestore();
