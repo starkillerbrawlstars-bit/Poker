@@ -63,14 +63,20 @@ const A=document.getElementById('app'),SU='♠♥♦♣',HN=['Hohe Karte','Paar'
 let db,uid,P,T=[],PL=[],cur=null,raise=0,err='',rs=false,TL=false,busy=false,HI=[];
 const E=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const RK=r=>({11:'B',12:'D',13:'K',14:'A'}[r]||r),fm=n=>(n>0?'+':'')+n,cl=o=>JSON.parse(JSON.stringify(o));
-let OFF=0;const now=()=>Date.now()+OFF;
-async function sync(){try{const r=db.doc('clock/'+uid),a=Date.now();await r.set({t:firebase.firestore.FieldValue.serverTimestamp()});const d=await r.get({source:'server'}),b=Date.now();OFF=d.data().t.toMillis()-(a+b)/2}catch(e){}}
+let OFF=0,SY=false;const now=()=>Date.now()+OFF;
+async function sync(){try{const r=db.doc('clock/'+uid),a=Date.now();await r.set({t:firebase.firestore.FieldValue.serverTimestamp()});const d=await r.get({source:'server'}),b=Date.now();OFF=d.data().t.toMillis()-(a+b)/2;SY=true;chkWeek();draw()}catch(e){}}
 const SH={},PV={};let LV='';
+const TS={};
+function remain(t){const k=t.id+'|'+(t.hn||0)+'|'+t.ph+'|'+t.turn+'|'+t.dl;if(!(k in TS))TS[k]=Date.now();return 30-(Date.now()-TS[k])/1e3}
+function myAlert(){toast('🃏 Du bist dran!',4e3);
+ try{const c=new(window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator();o.connect(c.destination);o.frequency.value=660;o.start();o.stop(c.currentTime+.15)}catch(e){}}
 const el=k=>{const n=Date.now();if(!(k in SH))SH[k]=n;return n-SH[k]};
 function an(k,d,f){const n=Date.now();if(!(k in SH))SH[k]=n+(d||0);const e=n-SH[k];return e<900?` n${f?' fl':''}" style="animation-delay:${-e}ms`:''}
 const cd=(c,k,d,f)=>{const a=k?an(k,d,f):'';return c==null?`<i class="c bk${a}"></i>`:`<i class="c${[1,2].includes(c/13|0)?' r':''}${a}">${RK(c%13+2)}<b>${SU[c/13|0]}</b></i>`};
 function anim(){document.querySelectorAll('.num').forEach(e=>{const k=e.dataset.k,v=+e.dataset.v,f=PV[k]??v;PV[k]=v;if(f==v)return;const t0=performance.now();(function st(t){const p=Math.min(1,(t-t0)/600);e.textContent=Math.round(f+(v-f)*p);if(p<1)requestAnimationFrame(st)})(t0)})}
-function wk(){const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+3-(d.getDay()+6)%7);const y=d.getFullYear(),j=new Date(y,0,4);return y+'-KW'+String(1+Math.round(((d-j)/864e5-3+(j.getDay()+6)%7)/7)).padStart(2,'0')}
+function wk(){const[y,m,d]=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(now()).split('-').map(Number);
+ const t=new Date(Date.UTC(y,m-1,d));t.setUTCDate(t.getUTCDate()-(t.getUTCDay()+6)%7+3);
+ const y1=t.getUTCFullYear(),j=new Date(Date.UTC(y1,0,4));return y1+'-KW'+String(1+Math.round(((t-j)/864e5-3+(j.getUTCDay()+6)%7)/7)).padStart(2,'0')}
 /* ---------- Hand-Auswertung ---------- */
 function ev(c){const r=c.map(x=>x%13+2).sort((a,b)=>b-a),fl=c.every(x=>(x/13|0)==(c[0]/13|0)),u=[...new Set(r)];let st=0;
  if(u.length==5){if(u[0]-u[4]==4)st=u[0];else if(u[0]==14&&u[1]==5)st=5}
@@ -124,11 +130,19 @@ const save=s=>{const{id,...r}=s;return db.doc('tables/'+(s.id||cur)).set(r).catc
 const upd=d=>db.doc('players/'+uid).update(d).catch(e=>{err=e.message;draw()});
 const myT=()=>T.find(t=>t.id==cur);
 const mySeat=(t)=>t&&t.seats.findIndex(x=>x.id==uid&&!x.left);
-const TX=fn=>db.runTransaction(fn).catch(e=>{err=e.message;draw();return null});
+const TXL=[];
+const TX=fn=>{const n=Date.now();while(TXL.length&&n-TXL[0]>6e4)TXL.shift();
+ if(TXL.length>=40){err='Schutzbremse: zu viele Aktionen in kurzer Zeit. Bitte Seite neu laden.';draw();return Promise.resolve(null)}
+ TXL.push(n);return db.runTransaction(fn).catch(e=>{err=e.message;draw();return null})};
+const lg=(tx,k,u,d,i)=>tx.set(db.collection('ledger').doc(),{k,u,d,i:String(i||''),ts:now()});
 const tref=id=>db.doc('tables/'+id),pref=id=>db.doc('players/'+id),ACT=['pre','flop','turn','river'];
+function pb(p){const t=myT(),i=mySeat(t);if(!(i>=0))return;const x=t.seats[i],pot=t.seats.reduce((a,y)=>a+y.tot,0),need=Math.max(0,t.cb-x.bet),mx=x.bet+x.stack,mn=Math.min(t.cb+t.mr,mx);
+ raise=Math.max(mn,Math.min(mx,Math.round((t.cb+p/100*(pot+need))/5)*5));
+ const sl=document.getElementById('rs'),l=document.getElementById('rl');if(sl)sl.value=raise;if(l)l.textContent=raise}
 function go(t,a){err='';const id=cur;TX(async tx=>{const d=await tx.get(tref(id));if(!d.exists)return;const s=d.data();
  if(!ACT.includes(s.ph)||!s.seats[s.turn]||s.seats[s.turn].id!=uid)return;
  act(s,t,a);tx.set(tref(id),s)})}
+function setRaise(a){raise=a;const r=document.getElementById('rs'),l=document.getElementById('rl');if(r)r.value=a;if(l)l.textContent=a}
 function nextHand(){err='';const id=cur;TX(async tx=>{const d=await tx.get(tref(id));if(!d.exists)return;const s=d.data();
  if(s.ph!='show'&&s.ph!='wait')return;startHand(s);tx.set(tref(id),s)})}
 async function setName(){const n=document.getElementById('nm').value.trim().slice(0,16);if(!n)return;
@@ -143,7 +157,7 @@ function join(id){err='';TX(async tx=>{
  if((p.chips||0)<=0)throw new Error('Keine Chips mehr – hol dir einen Rebuy.');
  s.seats=s.seats.filter(y=>y.id!=uid);
  s.seats.push({id:uid,name:p.name,stack:p.chips,bet:0,tot:0,f:true,ai:false,a:true,h:[],w:0,sc:0});
- tx.set(tref(id),s);tx.update(pref(uid),{chips:0,table:id});return 1}).then(r=>{if(r){cur=id;draw()}})}
+ tx.set(tref(id),s);tx.update(pref(uid),{chips:0,table:id});lg(tx,'join',uid,p.chips,id);return 1}).then(r=>{if(r){cur=id;draw()}})}
 function leave(){err='';const id=cur;if(!id)return;
  TX(async tx=>{const d=await tx.get(tref(id)),pd=await tx.get(pref(uid));if(!pd.exists)return 1;const p=pd.data();
   const s=d.exists?d.data():null,i=s?s.seats.findIndex(x=>x.id==uid&&!x.left):-1;
@@ -151,13 +165,13 @@ function leave(){err='';const id=cur;if(!id)return;
   const x=s.seats[i],back=x.stack;x.stack=0;x.left=true;
   if(ACT.includes(s.ph)&&!x.f){x.f=true;if(s.turn==i||live(s).length<2)advance(s)}
   if(s.seats.some(y=>!y.left))tx.set(tref(id),s);else tx.delete(tref(id));
-  tx.update(pref(uid),{chips:(p.chips||0)+back,table:null});return 1}).then(()=>{cur=null;draw()})}
+  tx.update(pref(uid),{chips:(p.chips||0)+back,table:null});lg(tx,'leave',uid,back,id);return 1}).then(()=>{cur=null;draw()})}
 function rebuy(){err='';const id=cur;
  TX(async tx=>{const pd=await tx.get(pref(uid));if(!pd.exists)return;const p=pd.data(),rb=(p.rebuys||0)+1;
   const d=id?await tx.get(tref(id)):null;
   if(d&&d.exists){const s=d.data(),i=s.seats.findIndex(x=>x.id==uid&&!x.left);
-   if(i>=0){const x=s.seats[i];if(ACT.includes(s.ph)&&!x.f)throw new Error('Rebuy geht erst nach deiner Runde.');x.stack+=1000;tx.set(tref(id),s);tx.update(pref(uid),{rebuys:rb});return}}
-  tx.update(pref(uid),{chips:(p.chips||0)+1000,rebuys:rb})})}
+   if(i>=0){const x=s.seats[i];if(ACT.includes(s.ph)&&!x.f)throw new Error('Rebuy geht erst nach deiner Runde.');x.stack+=1000;tx.set(tref(id),s);tx.update(pref(uid),{rebuys:rb});lg(tx,'rebuy',uid,1000,id);return}}
+  tx.update(pref(uid),{chips:(p.chips||0)+1000,rebuys:rb});lg(tx,'rebuy',uid,1000,'lobby')})}
 /* ---------- 30-Sekunden-Timer ---------- */
 let fired=0;
 function kick(t){const id=t.id,dl=t.dl,turn=t.turn;
@@ -168,16 +182,18 @@ function kick(t){const id=t.id,dl=t.dl,turn=t.turn;
   s.log.push(x.name+' wurde wegen Inaktivität entfernt');s.log=s.log.slice(-6);
   if(s.ph!='show'){if(live(s).length<2)award(s);else if(s.seats[s.turn].f){const nx=nextActor(s,s.turn);if(nx>=0){s.turn=nx;s.dl=now()+3e4}else advance(s)}}
   if(s.seats.some(y=>!y.left))tx.set(tref(id),s);else tx.delete(tref(id));
-  if(pd.exists)tx.update(pref(x.id),{chips:(pd.data().chips||0)+back,table:null,kicked:true})})}
+  if(pd.exists){tx.update(pref(x.id),{chips:(pd.data().chips||0)+back,table:null,kicked:true});lg(tx,'kick',x.id,back,id)}})}
 setInterval(()=>{const t=cur&&myT();if(!t||!t.dl||!ACT.includes(t.ph))return;
- const r=(t.dl-now())/1e3,e=document.getElementById('cd');if(e)e.textContent=Math.max(0,Math.ceil(r));
+ const r=remain(t),e=document.getElementById('cd');if(e)e.textContent=Math.max(0,Math.ceil(r));
  const tb=document.getElementById('tb');if(tb){tb.style.width=Math.max(0,r-1)/.3+'%';tb.className=r<10?'lo':''}
- if(mySeat(t)<0||t.dl===fired||!t.seats[t.turn])return;
- if(now()>t.dl+(t.seats[t.turn].id==uid?0:4000)){fired=t.dl;kick(t)}},1000);
+ const x=t.seats[t.turn];if(!x||mySeat(t)<0)return;
+ const k='n'+t.id+(t.hn||0)+t.ph+t.turn+t.dl;if(x.id==uid&&!(k in TS)){TS[k]=1;myAlert()}
+ if(x.id==uid&&r>0&&r<=5){try{navigator.vibrate&&navigator.vibrate(150)}catch(e){}}
+ if(t.dl!==fired&&r<=(x.id==uid?0:-4)){fired=t.dl;kick(t)}},1000);
 /* ---------- Wochenabschluss ---------- */
 function chkWeek(){
- if(!P||P.week===wk()||busy)return;busy=true;cur=null;
- TX(async tx=>{const pd=await tx.get(pref(uid));if(!pd.exists)return;const p=pd.data();if(p.week===wk())return;
+ if(!P||!SY||!(P.week<wk())||busy)return;busy=true;cur=null;
+ TX(async tx=>{const pd=await tx.get(pref(uid));if(!pd.exists)return;const p=pd.data();if(!(p.week<wk()))return;
   let stack=0,s=null,i=-1;
   if(p.table){const td=await tx.get(tref(p.table));if(td.exists){s=td.data();i=s.seats.findIndex(x=>x.id==uid&&!x.left)}}
   if(i>=0){const x=s.seats[i];stack=x.stack;x.stack=0;x.left=true;
@@ -185,7 +201,8 @@ function chkWeek(){
    if(s.seats.some(y=>!y.left))tx.set(tref(p.table),s);else tx.delete(tref(p.table))}
   const chips=(p.chips||0)+stack;
   tx.set(db.doc('history/'+p.week+'_'+uid),{week:p.week,uid,name:p.name,profit:chips-1000*(1+(p.rebuys||0)),chips,rebuys:p.rebuys||0});
-  tx.update(pref(uid),{chips:1000,rebuys:0,week:wk(),table:null})})}
+  lg(tx,'week',uid,chips,p.week+' -> '+wk()+', Profit '+(chips-1000*(1+(p.rebuys||0)))+', Rebuys '+(p.rebuys||0));
+  tx.update(pref(uid),{chips:1000,rebuys:0,week:wk(),table:null})}).then(()=>{busy=false;draw()})}
 function hist(){if(!HI.length)return '';const w={};HI.forEach(h=>(w[h.week]=w[h.week]||[]).push(h));
  return '<div class="k"><h2>Vergangene Wochen</h2>'+Object.keys(w).sort().reverse().map((k,i)=>`<details${i?'':' open'}><summary><b>${k}</b> · Sieger: ${E(w[k].sort((a,b)=>b.profit-a.profit)[0].name)}</summary><table>${w[k].map((h,j)=>`<tr><td>${j+1}. ${E(h.name)}</td><td>${h.chips}</td><td>${pc(h.profit)}</td></tr>`).join('')}</table></details>`).join('')+'</div>'}
 /* ---------- Ping ---------- */
@@ -230,12 +247,12 @@ function table(t){
  let ctl='';
  if(myTurn){const need=t.cb-me.bet,mx=me.bet+me.stack,mn=Math.min(t.cb+t.mr,mx);raise=Math.max(mn,Math.min(raise||mn,mx));
   ctl=`<div class="r"><button onclick="go('f')">Fold</button><button class="p" onclick="go('c')">${need>0?'Call '+Math.min(need,me.stack):'Check'}</button></div>
-  ${mx>t.cb?`<input type="range" min="${mn}" max="${mx}" step="${mn==mx?1:10}" value="${raise}" oninput="raise=+this.value;document.getElementById('rl').textContent=raise"><div class="r sp"><button onclick="go('r',raise)">${t.cb?'Erhöhen auf':'Setzen'} <span id="rl">${raise}</span></button><button onclick="go('r',${mx})">All-in ${mx}</button></div>`:''}`}
+  ${mx>t.cb?`<div class="r" style="margin-top:8px">${[25,50,75,100].map(p=>{const a=Math.min(mx,Math.max(mn,Math.round((t.cb+p/100*(pot+need))/10)*10));return `<button style="flex:1;padding:8px 4px" onclick="setRaise(${a})">${p}%<br><small class="mu">${a}</small></button>`}).join('')}</div><input id="rs" type="range" min="${mn}" max="${mx}" step="1" id="rs" value="${raise}" oninput="raise=+this.value;document.getElementById('rl').textContent=raise"><div class="r" style="margin:6px 0">${[25,50,75,100].map(p=>`<button style="flex:1;padding:8px 4px" onclick="pb(${p})">${p}% Pot</button>`).join('')}</div><div class="r sp"><button onclick="go('r',raise)">${t.cb?'Erhöhen auf':'Setzen'} <span id="rl">${raise}</span></button><button onclick="go('r',${mx})">All-in ${mx}</button></div>`:''}`}
  else if(me&&act)ctl=`<span class="mu">${me.f?'Du hast gefoldet.':'Warte auf '+E(t.seats[t.turn]?.name||'')+' …'}</span>`;
  const nh=me&&(t.ph=='show'||t.ph=='wait')?`<button class="p" onclick="nextHand()">${t.ph=='wait'&&!t.deck.length?'Spiel starten':'Nächste Runde'}</button> `:'';
- const rem=t.dl?Math.max(0,(t.dl-now())/1e3):30,pct=Math.min(100,rem/.3),ro=t.ph=='show'?t.ro||[]:[],b=[0,1,2,3,4].map(k=>t.board[k]!=null?cd(t.board[k],'b'+(t.hn||0)+'_'+t.board[k],(k<3?k:0)*130,1):ro[k-t.board.length]!=null?cd(ro[k-t.board.length],'g'+(t.hn||0)+'_'+ro[k-t.board.length],(k-t.board.length)*150,1).replace('class="c','class="c gh'):'<i class="c em"></i>').join('');
+ const rem=t.dl?remain(t):30,pct=Math.min(100,Math.max(0,rem)/.3),ro=t.ph=='show'?t.ro||[]:[],b=[0,1,2,3,4].map(k=>t.board[k]!=null?cd(t.board[k],'b'+(t.hn||0)+'_'+t.board[k],(k<3?k:0)*130,1):ro[k-t.board.length]!=null?cd(ro[k-t.board.length],'g'+(t.hn||0)+'_'+ro[k-t.board.length],(k-t.board.length)*150,1).replace('class="c','class="c gh'):'<i class="c em"></i>').join('');
  return `${ov}<div class="k r sp"><h2>${E(t.name)}</h2><div class="r"><button onclick="rebuy()">Rebuy +1000</button><button onclick="leave()">Verlassen</button></div></div>
- <div class="felt"><div class="mu" style="color:#cde">Pot <span class="num" data-k="pot" data-v="${pot}">${pot}</span>${act&&t.dl?` · ⏱ <span id="cd">30</span>s<div class="tb"><i id="tb" class="${rem<10?'lo':''}" style="width:${pct}%"></i></div>`:''}</div>${b}<div style="margin-top:6px;min-height:1.4em">${E(t.msg||'')}</div>${ls.length?`<div style="margin-top:4px">💸 Großer Pot! ${ls.map(x=>E(x.name)).join(', ')} verliert.</div>`:''}</div>
+ <div class="felt"><div class="mu" style="color:#cde">Pot <span class="num" data-k="pot" data-v="${pot}">${pot}</span>${act&&t.dl?` · ⏱ <span id="cd">${Math.max(0,Math.ceil(rem))}</span>s<div class="tb"><i id="tb" class="${rem<10?'lo':''}" style="width:${pct}%"></i></div>`:''}</div>${b}<div style="margin-top:6px;min-height:1.4em">${E(t.msg||'')}</div>${ls.length?`<div style="margin-top:4px">💸 Großer Pot! ${ls.map(x=>E(x.name)).join(', ')} verliert.</div>`:''}</div>
  <div class="sg" style="margin-top:10px">${seats}</div>
  <div class="k">${nh}${ctl}${hint}</div>
  <div class="k mu">${(t.log||[]).slice().reverse().map(E).join('<br>')}</div>
@@ -245,7 +262,7 @@ function draw(){
  const ae=document.activeElement,keep=ae&&ae.type=='text'&&ae.id?{id:ae.id,v:ae.value,p:ae.selectionStart}:null;
  if(!db)return;if(P===undefined){A.textContent='Lade …';return}
  if(!P){A.textContent='Lade …';return}
- if(P.week!==wk()){A.textContent='Neue Woche wird vorbereitet …';return}
+ if(SY&&P.week<wk()){A.textContent='Neue Woche wird vorbereitet …';return}
  if(cur&&!myT())cur=null;
  if(!cur&&P.table&&T.length&&!rs){const t=T.find(x=>x.id==P.table);if(t&&mySeat(t)>=0)cur=t.id;rs=true}
  const t=myT(),vw=t?'t':'l';A.className='w'+(vw!=LV?' fi':'');LV=vw;A.innerHTML=head()+(t?table(t):lobby());anim();{const cl=document.getElementById('cl');if(cl)cl.scrollTop=cl.scrollHeight}
@@ -258,16 +275,16 @@ function start(n){
   if(!s.exists){P=undefined;db.doc('players/'+uid).set({name:n,chips:1000,rebuys:0,week:wk(),table:null});return}
   P=s.data();
   if(P.kicked){cur=null;err='Du wurdest wegen Inaktivität (30 Sekunden) aus der Lobby entfernt. Deine Chips sind sicher.';upd({kicked:false})}
-  if(P.week===wk())busy=false;else{chkWeek();return}
+  if(SY&&P.week<wk()){chkWeek();return}busy=false;
   draw()});
  db.collection('tables').onSnapshot(s=>{T=s.docs.map(x=>({id:x.id,...x.data()}));TL=true;chkWeek();draw()},e=>{err='Lobbys laden fehlgeschlagen: '+e.message;draw()});
  db.collection('players').onSnapshot(s=>{PL=s.docs.map(x=>({id:x.id,...x.data()}));draw()},e=>{err='Rangliste laden fehlgeschlagen: '+e.message;draw()});
- db.collection('history').orderBy('week','desc').limit(80).onSnapshot(s=>{HI=s.docs.map(x=>x.data());draw()},e=>{});
- db.collection('chat').orderBy('ts','desc').limit(150).onSnapshot(s=>{CH=s.docs.map(x=>x.data()).reverse();drawChat()},e=>{err='Chat laden fehlgeschlagen: '+e.message;draw()});
+ db.collection('history').orderBy('week','desc').limit(40).onSnapshot(s=>{HI=s.docs.map(x=>x.data());draw()},e=>{});
+ db.collection('chat').orderBy('ts','desc').limit(50).onSnapshot(s=>{CH=s.docs.map(x=>x.data()).reverse();drawChat()},e=>{err='Chat laden fehlgeschlagen: '+e.message;draw()});
  db.collection('pings').orderBy('ts','desc').limit(5).onSnapshot(s=>s.docChanges().forEach(c=>{if(c.type=='added')onPing(c.doc)}),e=>{});
- sync();setInterval(sync,3e5);
+ sync();setInterval(sync,18e5);
  P=undefined;draw()}
-try{firebase.initializeApp(FB);db=firebase.firestore();
+try{firebase.initializeApp(FB);db=firebase.firestore();try{db.settings({experimentalAutoDetectLongPolling:true})}catch(e){}
  const n=localStorage.getItem('pkn');
  if(n)start(n);else A.innerHTML='<div class="k"><h1>♠ Freunde-Poker</h1><p>Wie heißt du am Tisch? (Mit diesem Namen behältst du deine Chips.)</p><div class="r"><input type="text" id="nm" maxlength="16" placeholder="Dein Name" style="flex:1"><button class="p" onclick="login()">Los</button></div></div>';
 }catch(e){A.textContent='Fehler: '+e.message}
