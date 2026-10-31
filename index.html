@@ -203,6 +203,9 @@ function chkWeek(){
   tx.set(db.doc('history/'+p.week+'_'+uid),{week:p.week,uid,name:p.name,profit:chips-1000*(1+(p.rebuys||0)),chips,rebuys:p.rebuys||0});
   lg(tx,'week',uid,chips,p.week+' -> '+wk()+', Profit '+(chips-1000*(1+(p.rebuys||0)))+', Rebuys '+(p.rebuys||0));
   tx.update(pref(uid),{chips:1000,rebuys:0,week:wk(),table:null})}).then(()=>{busy=false;draw()})}
+const VER='31.10.-e';
+function chk(){const L=PL.filter(p=>p.week==wk()),pots=T.reduce((a,t)=>a+(ACT.includes(t.ph)?t.seats.filter(x=>x.left).reduce((b,x)=>b+x.tot,0):0),0),sum=L.reduce((a,p)=>a+pr(p),0)+pots;
+ return `<p class="mu">Prüfsumme (sollte 0 sein): <b class="${sum?'mi':'pl'}">${sum}</b> · Version ${VER}</p>`}
 function hist(){if(!HI.length)return '';const w={};HI.forEach(h=>(w[h.week]=w[h.week]||[]).push(h));
  return '<div class="k"><h2>Vergangene Wochen</h2>'+Object.keys(w).sort().reverse().map((k,i)=>`<details${i?'':' open'}><summary><b>${k}</b> · Sieger: ${E(w[k].sort((a,b)=>b.profit-a.profit)[0].name)}</summary><table>${w[k].map((h,j)=>`<tr><td>${j+1}. ${E(h.name)}</td><td>${h.chips}</td><td>${pc(h.profit)}</td></tr>`).join('')}</table></details>`).join('')+'</div>'}
 /* ---------- Ping ---------- */
@@ -224,7 +227,7 @@ const chatBox=()=>`<div class="k"><h2>💬 Chat</h2><div id="cl" class="cl">${ms
 function say(){const e=document.getElementById('cm'),m=e.value.trim();if(!m)return;e.value='';db.collection('chat').add({t:cur||'lobby',u:uid,n:P.name,m:m.slice(0,200),ts:Date.now()}).catch(x=>{err=x.message;draw()})}
 function drawChat(){const e=document.getElementById('cl');if(e){e.innerHTML=msgs();e.scrollTop=e.scrollHeight}}
 /* ---------- Anzeige ---------- */
-function val(p){let v=p.chips||0;T.forEach(t=>{const x=(t.seats||[]).find(y=>y.id==p.id&&!y.left);if(x&&p.table==t.id)v+=x.stack});return v}
+function val(p){let v=p.chips||0;T.forEach(t=>{const x=(t.seats||[]).find(y=>y.id==p.id&&!y.left);if(x&&p.table==t.id)v+=x.stack+(ACT.includes(t.ph)?x.tot:0)});return v}
 const pr=p=>val(p)-1000*(1+(p.rebuys||0)),pc=n=>`<span class="${n>=0?'pl':'mi'}">${fm(n)}</span>`;
 function head(){const me=PL.find(p=>p.id==uid)||{...P,id:uid};
  return `<div class="k r sp"><div><h1>♠ ${E(P.name)}</h1><span class="mu">${wk()} · Start 1000 Chips · Rebuys: ${P.rebuys||0}</span><br><button onclick="ping()" style="margin-top:6px;padding:6px 10px">📣 Ich spiele!</button></div>
@@ -234,7 +237,7 @@ function lobby(){
  const rk=[...PL].sort((a,b)=>pr(b)-pr(a)).map((p,i)=>`<tr><td>${i+1}. ${E(p.name)}</td><td>${val(p)}</td><td>${pc(pr(p))}</td></tr>`).join('');
  return `<div class="k"><h2>Lobbys</h2>${tb||'<span class="mu">Noch keine Lobby – erstelle eine.</span>'}
  <div class="r" style="margin-top:8px"><input type="text" id="tn" placeholder="Name der neuen Lobby" maxlength="20" style="flex:1"><button onclick="mk()">Erstellen</button></div></div>
- <div class="k"><div class="r sp"><h2>Rangliste (Woche)</h2><button onclick="rebuy()">Rebuy +1000</button></div><table><tr class="mu"><td>Spieler</td><td>Chips</td><td>Plus/Minus</td></tr>${rk}</table></div>${hist()}${chatBox()}`}
+ <div class="k"><div class="r sp"><h2>Rangliste (Woche)</h2><button onclick="rebuy()">Rebuy +1000</button></div><table><tr class="mu"><td>Spieler</td><td>Chips</td><td>Plus/Minus</td></tr>${rk}</table>${chk()}</div>${hist()}${chatBox()}`}
 function table(t){
  const i=mySeat(t),me=t.seats[i],S=t.seats.filter(x=>!x.left),act=['pre','flop','turn','river'].includes(t.ph);
  const myTurn=act&&me&&t.seats[t.turn]===me;
