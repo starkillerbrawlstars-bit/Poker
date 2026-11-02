@@ -191,19 +191,22 @@ setInterval(()=>{const t=cur&&myT();if(!t||!t.dl||!ACT.includes(t.ph))return;
  if(x.id==uid&&r>0&&r<=5){try{navigator.vibrate&&navigator.vibrate(150)}catch(e){}}
  if(t.dl!==fired&&r<=(x.id==uid?0:-4)){fired=t.dl;kick(t)}},1000);
 /* ---------- Wochenabschluss ---------- */
-function chkWeek(){
- if(!P||!SY||!(P.week<wk())||busy)return;busy=true;cur=null;
- TX(async tx=>{const pd=await tx.get(pref(uid));if(!pd.exists)return;const p=pd.data();if(!(p.week<wk()))return;
+const RW=new Set();
+function chkWeek(){if(!SY)return;const w=wk();
+ PL.filter(p=>p.week<w).forEach(p=>resetP(p.id));
+ if(P&&P.week<w&&!PL.some(p=>p.id==uid))resetP(uid)}
+function resetP(id){if(RW.has(id))return;RW.add(id);if(id==uid)cur=null;
+ TX(async tx=>{const pd=await tx.get(pref(id));if(!pd.exists)return;const p=pd.data();if(!(p.week<wk()))return;
   let stack=0,s=null,i=-1;
-  if(p.table){const td=await tx.get(tref(p.table));if(td.exists){s=td.data();i=s.seats.findIndex(x=>x.id==uid&&!x.left)}}
+  if(p.table){const td=await tx.get(tref(p.table));if(td.exists){s=td.data();i=s.seats.findIndex(x=>x.id==id&&!x.left)}}
   if(i>=0){const x=s.seats[i];stack=x.stack;x.stack=0;x.left=true;
    if(ACT.includes(s.ph)&&!x.f){x.f=true;if(s.turn==i||live(s).length<2)advance(s)}
    if(s.seats.some(y=>!y.left))tx.set(tref(p.table),s);else tx.delete(tref(p.table))}
-  const chips=(p.chips||0)+stack;
-  tx.set(db.doc('history/'+p.week+'_'+uid),{week:p.week,uid,name:p.name,profit:chips-1000*(1+(p.rebuys||0)),chips,rebuys:p.rebuys||0});
-  lg(tx,'week',uid,chips,p.week+' -> '+wk()+', Profit '+(chips-1000*(1+(p.rebuys||0)))+', Rebuys '+(p.rebuys||0));
-  tx.update(pref(uid),{chips:1000,rebuys:0,week:wk(),table:null})}).then(()=>{busy=false;draw()})}
-const VER='31.10.-e';
+  const chips=(p.chips||0)+stack,profit=chips-1000*(1+(p.rebuys||0));
+  tx.set(db.doc('history/'+p.week+'_'+id),{week:p.week,uid:id,name:p.name,profit,chips,rebuys:p.rebuys||0});
+  lg(tx,'week',id,chips,p.week+' -> '+wk()+', Profit '+profit+', Rebuys '+(p.rebuys||0));
+  tx.update(pref(id),{chips:1000,rebuys:0,week:wk(),table:null})}).then(()=>{RW.delete(id);if(id==uid)draw()})}
+const VER='02.11.-f';
 function chk(){const L=PL.filter(p=>p.week==wk()),pots=T.reduce((a,t)=>a+(ACT.includes(t.ph)?t.seats.filter(x=>x.left).reduce((b,x)=>b+x.tot,0):0),0),sum=L.reduce((a,p)=>a+pr(p),0)+pots;
  return `<p class="mu">Prüfsumme (sollte 0 sein): <b class="${sum?'mi':'pl'}">${sum}</b> · Version ${VER}</p>`}
 function hist(){if(!HI.length)return '';const w={};HI.forEach(h=>(w[h.week]=w[h.week]||[]).push(h));
@@ -281,7 +284,7 @@ function start(n){
   if(SY&&P.week<wk()){chkWeek();return}busy=false;
   draw()});
  db.collection('tables').onSnapshot(s=>{T=s.docs.map(x=>({id:x.id,...x.data()}));TL=true;chkWeek();draw()},e=>{err='Lobbys laden fehlgeschlagen: '+e.message;draw()});
- db.collection('players').onSnapshot(s=>{PL=s.docs.map(x=>({id:x.id,...x.data()}));draw()},e=>{err='Rangliste laden fehlgeschlagen: '+e.message;draw()});
+ db.collection('players').onSnapshot(s=>{PL=s.docs.map(x=>({id:x.id,...x.data()}));chkWeek();draw()},e=>{err='Rangliste laden fehlgeschlagen: '+e.message;draw()});
  db.collection('history').orderBy('week','desc').limit(40).onSnapshot(s=>{HI=s.docs.map(x=>x.data());draw()},e=>{});
  db.collection('chat').orderBy('ts','desc').limit(50).onSnapshot(s=>{CH=s.docs.map(x=>x.data()).reverse();drawChat()},e=>{err='Chat laden fehlgeschlagen: '+e.message;draw()});
  db.collection('pings').orderBy('ts','desc').limit(5).onSnapshot(s=>s.docChanges().forEach(c=>{if(c.type=='added')onPing(c.doc)}),e=>{});
