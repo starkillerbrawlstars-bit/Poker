@@ -73,7 +73,7 @@ function myAlert(){toast('🃏 Du bist dran!',4e3);
 const el=k=>{const n=Date.now();if(!(k in SH))SH[k]=n;return n-SH[k]};
 function an(k,d,f){const n=Date.now();if(!(k in SH))SH[k]=n+(d||0);const e=n-SH[k];return e<900?` n${f?' fl':''}" style="animation-delay:${-e}ms`:''}
 const cd=(c,k,d,f)=>{const a=k?an(k,d,f):'';return c==null?`<i class="c bk${a}"></i>`:`<i class="c${[1,2].includes(c/13|0)?' r':''}${a}">${RK(c%13+2)}<b>${SU[c/13|0]}</b></i>`};
-function anim(){document.querySelectorAll('.num').forEach(e=>{const k=e.dataset.k,v=+e.dataset.v,f=PV[k]??v;PV[k]=v;if(f==v)return;const t0=performance.now();(function st(t){const p=Math.min(1,(t-t0)/600);e.textContent=Math.round(f+(v-f)*p);if(p<1)requestAnimationFrame(st)})(t0)})}
+function anim(){document.querySelectorAll('.num').forEach(e=>{const k=e.dataset.k,v=+e.dataset.v,f=PV[k]??v;PV[k]=v;if(f==v)return;const t0=performance.now(),fm=x=>e.dataset.f?eur(Math.round(x)):Math.round(x);(function st(t){const p=Math.min(1,(t-t0)/600);e.textContent=fm(f+(v-f)*p);if(p<1)requestAnimationFrame(st)})(t0)})}
 function wk(){const[y,m,d]=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(now()).split('-').map(Number);
  const t=new Date(Date.UTC(y,m-1,d));t.setUTCDate(t.getUTCDate()-(t.getUTCDay()+6)%7+3);
  const y1=t.getUTCFullYear(),j=new Date(Date.UTC(y1,0,4));return y1+'-KW'+String(1+Math.round(((t-j)/864e5-3+(j.getUTCDay()+6)%7)/7)).padStart(2,'0')}
@@ -102,10 +102,10 @@ function startHand(s){
 function act(s,t,amt){
  const i=s.turn,x=s.seats[i];
  if(t=='f'){x.f=true;s.log.push(x.name+' foldet')}
- else if(t=='c'){const a=Math.min(s.cb-x.bet,x.stack);post(s,i,a);s.log.push(x.name+(a?' callt '+a:' checkt'))}
+ else if(t=='c'){const a=Math.min(s.cb-x.bet,x.stack);post(s,i,a);s.log.push(x.name+(a?' callt '+eur(a)+' €':' checkt'))}
  else{const to=Math.min(amt,x.bet+x.stack),inc=to-s.cb;
   if(inc>0){if(inc>=s.mr)s.mr=inc;s.seats.forEach(y=>{if(y!=x)y.a=false});s.cb=to}
-  post(s,i,to-x.bet);s.log.push(x.name+(x.ai?' geht All-in ('+to+')':' erhöht auf '+to))}
+  post(s,i,to-x.bet);s.log.push(x.name+(x.ai?' geht All-in ('+eur(to)+' €)':' erhöht auf '+eur(to)+' €'))}
  x.a=true;s.log=s.log.slice(-6);advance(s)}
 function advance(s){
  const L=live(s);if(L.length<2)return award(s);
@@ -117,14 +117,14 @@ function advance(s){
  for(let k=s.ph=='flop'?3:1;k>0;k--)s.board.push(s.deck.pop());
  if(can.length<2)return advance(s);
  s.turn=nextActor(s,s.dealer);s.dl=now()+3e4}
-function award(s){const w=live(s)[0],p=s.seats.reduce((a,x)=>a+x.tot,0);w.stack+=p;w.w=p;s.ph='show';s.rv=false;s.msg=w.name+' gewinnt '+p+' Chips';
+function award(s){const w=live(s)[0],p=s.seats.reduce((a,x)=>a+x.tot,0);w.stack+=p;w.w=p;s.ph='show';s.rv=false;s.msg=w.name+' gewinnt '+eur(p)+' €';
  s.ro=[...Array(5-s.board.length)].map((_,i)=>s.deck[s.deck.length-1-i]);if(s.ro.length)s.msg+=' · gestrichelt: Karten, die noch gekommen wären'}
 function showdown(s){
  const L=live(s);L.forEach(x=>x.sc=best(x.h.concat(s.board)));
  const lv=[...new Set(L.map(x=>x.tot))].sort((a,b)=>a-b);let pv=0;
  lv.forEach(l=>{const pot=s.seats.reduce((a,x)=>a+Math.max(0,Math.min(x.tot,l)-pv),0),el=L.filter(x=>x.tot>=l),m=Math.max(...el.map(x=>x.sc)),ws=el.filter(x=>x.sc==m);
   ws.forEach((x,k)=>{const g=Math.floor(pot/ws.length)+(k?0:pot%ws.length);x.stack+=g;x.w+=g});pv=l});
- s.ph='show';s.rv=true;s.msg=s.seats.filter(x=>x.w>0).map(x=>x.name+' +'+x.w+' ('+HN[x.sc/15**5|0]+')').join(' · ')}
+ s.ph='show';s.rv=true;s.msg=s.seats.filter(x=>x.w>0).map(x=>x.name+' +'+eur(x.w)+' € ('+HN[x.sc/15**5|0]+')').join(' · ')}
 /* ---------- Datenbank ---------- */
 const save=s=>{const{id,...r}=s;return db.doc('tables/'+(s.id||cur)).set(r).catch(e=>{err=e.message;draw()})};
 const upd=d=>db.doc('players/'+uid).update(d).catch(e=>{err=e.message;draw()});
@@ -142,7 +142,7 @@ function pb(p){const t=myT(),i=mySeat(t);if(!(i>=0))return;const x=t.seats[i],po
 function go(t,a){err='';const id=cur;TX(async tx=>{const d=await tx.get(tref(id));if(!d.exists)return;const s=d.data();
  if(!ACT.includes(s.ph)||!s.seats[s.turn]||s.seats[s.turn].id!=uid)return;
  act(s,t,a);tx.set(tref(id),s)})}
-function setRaise(a){raise=a;const r=document.getElementById('rs'),l=document.getElementById('rl'),e=document.getElementById('re');if(r)r.value=a;if(l)l.textContent=a;if(e)e.textContent='('+eur(a)+' €)'}
+function setRaise(a){raise=a;const r=document.getElementById('rs'),l=document.getElementById('rl');if(r)r.value=a;if(l)l.textContent=eur(a)}
 function nextHand(){err='';const id=cur;TX(async tx=>{const d=await tx.get(tref(id));if(!d.exists)return;const s=d.data();
  if(s.ph!='show'&&s.ph!='wait')return;startHand(s);tx.set(tref(id),s)})}
 async function setName(){const n=document.getElementById('nm').value.trim().slice(0,16);if(!n)return;
@@ -154,7 +154,7 @@ function join(id){err='';TX(async tx=>{
  const s=td.data(),p=pd.data(),x=s.seats.find(y=>y.id==uid&&!y.left);
  if(x&&p.table==id)return 1;
  if(p.table&&p.table!=id){const od=await tx.get(tref(p.table));if(od.exists&&od.data().seats.some(y=>y.id==uid&&!y.left))throw new Error('Du sitzt noch an einem anderen Tisch – geh erst dorthin zurück und verlasse ihn.')}
- if((p.chips||0)<=0)throw new Error('Keine Chips mehr – hol dir einen Rebuy.');
+ if((p.chips||0)<=0)throw new Error('Kein Guthaben mehr – hol dir einen Rebuy.');
  s.seats=s.seats.filter(y=>y.id!=uid);
  s.seats.push({id:uid,name:p.name,stack:p.chips,bet:0,tot:0,f:true,ai:false,a:true,h:[],w:0,sc:0});
  tx.set(tref(id),s);tx.update(pref(uid),{chips:0,table:id});lg(tx,'join',uid,p.chips,id);return 1}).then(r=>{if(r){cur=id;draw()}})}
@@ -207,15 +207,15 @@ function resetP(id){if(RW.has(id))return;RW.add(id);if(id==uid)cur=null;
   tx.set(db.doc('history/'+p.week+'_'+id),{week:p.week,uid:id,name:p.name,profit,chips,rebuys:p.rebuys||0,bank});
   lg(tx,'week',id,chips,p.week+' -> '+wk()+', Profit '+profit+', Rebuys '+(p.rebuys||0));
   tx.update(pref(id),{chips:1000,rebuys:0,week:wk(),table:null,bank})}).then(()=>{RW.delete(id);if(id==uid)draw()})}
-const VER='02.11.-i',RATE=100,eur=n=>(n/RATE).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}),pe=n=>`<span class="${n>=0?'pl':'mi'}">${n>0?'+':''}${eur(n)} €</span>`,tt=p=>(p.bank||0)+pr(p);
+const VER='02.11.-j',RATE=100,eur=n=>(n/RATE).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}),pe=n=>`<span class="${n>=0?'pl':'mi'}">${n>0?'+':''}${eur(n)} €</span>`,tt=p=>(p.bank||0)+pr(p);
 function bil(){const L=PL.map(p=>({n:p.name,v:tt(p)})).sort((a,b)=>b.v-a.v);if(!L.length)return '';
  const C=L.filter(x=>x.v>0).map(x=>({...x})),D=L.filter(x=>x.v<0).map(x=>({n:x.n,v:-x.v})).reverse(),out=[];let i=0,j=0;
  while(i<C.length&&j<D.length){const a=Math.min(C[i].v,D[j].v);out.push(`${E(D[j].n)} → ${E(C[i].n)}: <b>${eur(a)} €</b>`);C[i].v-=a;D[j].v-=a;if(!C[i].v)i++;if(!D[j].v)j++}
- return `<div class="k"><h2>💶 Gesamtbilanz</h2><table>${L.map(x=>`<tr><td>${E(x.n)}</td><td>${pe(x.v)}</td></tr>`).join('')}</table><h2 style="margin-top:10px">Wer zahlt wem</h2>${out.length?out.map(x=>`<div>${x}</div>`).join(''):'<span class="mu">Nichts zu begleichen.</span>'}<p class="mu">100 Chips = 1 €. Gesamt = alle abgeschlossenen Wochen + aktuelle Woche.</p></div>`}
+ return `<div class="k"><h2>💶 Gesamtbilanz</h2><table>${L.map(x=>`<tr><td>${E(x.n)}</td><td>${pe(x.v)}</td></tr>`).join('')}</table><h2 style="margin-top:10px">Wer zahlt wem</h2>${out.length?out.map(x=>`<div>${x}</div>`).join(''):'<span class="mu">Nichts zu begleichen.</span>'}<p class="mu">Alle Beträge in Euro. Gesamt = alle abgeschlossenen Wochen + aktuelle Woche.</p></div>`}
 function chk(){const L=PL.filter(p=>p.week==wk()),pots=T.reduce((a,t)=>a+(ACT.includes(t.ph)?t.seats.filter(x=>x.left).reduce((b,x)=>b+x.tot,0):0),0),sum=L.reduce((a,p)=>a+pr(p),0)+pots;
- return `<p class="mu">Prüfsumme (sollte 0 sein): <b class="${sum?'mi':'pl'}">${sum}</b> · Version ${VER}</p>`}
+ return `<p class="mu">Prüfsumme (sollte 0 sein): <b class="${sum?'mi':'pl'}">${eur(sum)} €</b> · Version ${VER}</p>`}
 function hist(){if(!HI.length)return '';const w={};HI.forEach(h=>(w[h.week]=w[h.week]||[]).push(h));
- return '<div class="k"><h2>Vergangene Wochen</h2>'+Object.keys(w).sort().reverse().map((k,i)=>`<details${i?'':' open'}><summary><b>${k}</b> · Sieger: ${E(w[k].sort((a,b)=>b.profit-a.profit)[0].name)}</summary><table>${w[k].map((h,j)=>`<tr><td>${j+1}. ${E(h.name)}</td><td>${h.chips}</td><td>${pe(h.profit)}</td></tr>`).join('')}</table></details>`).join('')+'</div>'}
+ return '<div class="k"><h2>Vergangene Wochen</h2>'+Object.keys(w).sort().reverse().map((k,i)=>`<details${i?'':' open'}><summary><b>${k}</b> · Sieger: ${E(w[k].sort((a,b)=>b.profit-a.profit)[0].name)}</summary><table>${w[k].map((h,j)=>`<tr><td>${j+1}. ${E(h.name)}</td><td>${eur(h.chips)} €</td><td>${pe(h.profit)}</td></tr>`).join('')}</table></details>`).join('')+'</div>'}
 /* ---------- Ping ---------- */
 let lastPing=0;const seenP=new Set();
 function toast(h,ms){const e=document.getElementById('toast'),d=document.createElement('div');d.className='tt';d.innerHTML=h;e.appendChild(d);setTimeout(()=>d.remove(),ms||12e3)}
@@ -238,38 +238,37 @@ function drawChat(){const e=document.getElementById('cl');if(e){e.innerHTML=msgs
 function val(p){let v=p.chips||0;T.forEach(t=>{const x=(t.seats||[]).find(y=>y.id==p.id&&!y.left);if(x&&p.table==t.id)v+=x.stack+(ACT.includes(t.ph)?x.tot:0)});return v}
 const pr=p=>val(p)-1000*(1+(p.rebuys||0)),pc=n=>`<span class="${n>=0?'pl':'mi'}">${fm(n)}</span>`;
 function head(){const me=PL.find(p=>p.id==uid)||{...P,id:uid};
- return `<div class="k r sp"><div><h1>♠ ${E(P.name)}</h1><span class="mu">${wk()} · Start 1000 Chips · Rebuys: ${P.rebuys||0}</span><br><button onclick="ping()" style="margin-top:6px;padding:6px 10px">📣 Ich spiele!</button></div>
- <div style="text-align:right"><b>${val(me)} Chips</b><br>${pe(pr(me))} diese Woche<br><span class="mu">Gesamt ${pe(tt(me))}</span></div></div>${err?`<p class="er">${E(err)}</p>`:''}`}
+ return `<div class="k r sp"><div><h1>♠ ${E(P.name)}</h1><span class="mu">${wk()} · Start ${eur(1000)} € · Rebuys: ${P.rebuys||0}</span><br><button onclick="ping()" style="margin-top:6px;padding:6px 10px">📣 Ich spiele!</button></div>
+ <div style="text-align:right"><b>${eur(val(me))} €</b><br>${pe(pr(me))} diese Woche<br><span class="mu">Gesamt ${pe(tt(me))}</span></div></div>${err?`<p class="er">${E(err)}</p>`:''}`}
 function lobby(){
  const tb=T.map(t=>{const n=t.seats.filter(x=>!x.left);return `<div class="r sp" style="padding:6px 0"><div><b>${E(t.name)}</b><br><span class="mu">${n.length} Spieler: ${n.map(x=>E(x.name)).join(', ')||'leer'}</span></div><button class="p" onclick="join('${t.id}')">${P.table==t.id?'Zurück':'Beitreten'}</button></div>`}).join('');
- const rk=[...PL].sort((a,b)=>pr(b)-pr(a)).map((p,i)=>`<tr><td>${i+1}. ${E(p.name)}</td><td>${val(p)}</td><td>${pe(pr(p))}</td><td>${pe(tt(p))}</td></tr>`).join('');
+ const rk=[...PL].sort((a,b)=>pr(b)-pr(a)).map((p,i)=>`<tr><td>${i+1}. ${E(p.name)}</td><td>${eur(val(p))} €</td><td>${pe(pr(p))}</td><td>${pe(tt(p))}</td></tr>`).join('');
  return `<div class="k"><h2>Lobbys</h2>${tb||'<span class="mu">Noch keine Lobby – erstelle eine.</span>'}
  <div class="r" style="margin-top:8px"><input type="text" id="tn" placeholder="Name der neuen Lobby" maxlength="20" style="flex:1"><button onclick="mk()">Erstellen</button></div></div>
- <div class="k"><div class="r sp"><h2>Rangliste (Woche)</h2><button onclick="rebuy()">Rebuy +1000</button></div><table><tr class="mu"><td>Spieler</td><td>Chips</td><td>Woche</td><td>Gesamt</td></tr>${rk}</table>${chk()}</div>${bil()}${hist()}${chatBox()}`}
+ <div class="k"><div class="r sp"><h2>Rangliste (Woche)</h2><button onclick="rebuy()">Rebuy +${eur(1000)} €</button></div><table><tr class="mu"><td>Spieler</td><td>Guthaben</td><td>Woche</td><td>Gesamt</td></tr>${rk}</table>${chk()}</div>${bil()}${hist()}${chatBox()}`}
 function table(t){
  const i=mySeat(t),me=t.seats[i],S=t.seats.filter(x=>!x.left),act=['pre','flop','turn','river'].includes(t.ph);
  const myTurn=act&&me&&t.seats[t.turn]===me;
  const pot=t.seats.reduce((a,x)=>a+x.tot,0),big=pot>500&&t.ph=='show'&&t.rv,lz=x=>big&&!x.f&&(x.w||0)<x.tot,ls=t.seats.filter(x=>!x.left&&lz(x));
  const eL=me&&lz(me)?el('L'+(t.hn||0)+uid):9e9,ov=eL<3300?`<div id="lo" style="animation-delay:-${eL}ms"><b>😭 LOSER</b>${[...Array(14)].map((_,k)=>`<i style="left:${k*7+2}%;--d:${(k%5)*350-eL}ms">${k%2?'💸':'😭'}</i>`).join('')}</div>`:'';
- const wp=x=>{const q=PL.find(p=>p.id==x.id);return q?`<br><span class="mu">Woche ${pe(pr(q))}</span>`:''};
- const seats=t.seats.map((x,k)=>{if(x.left)return '';const show=x.id==uid||(t.rv&&!x.f),hn=t.hn||0;
+  const seats=t.seats.map((x,k)=>{if(x.left)return '';const show=x.id==uid||(t.rv&&!x.f),hn=t.hn||0;
   const cs=x.h&&x.h.length?x.h.map((c,i)=>show&&x.id!=uid?cd(c,'r'+hn+x.id+i,i*120,1):cd(show?c:null,'h'+hn+x.id+i,k*200+i*150)).join(''):'<span class="mu">schaut zu</span>';
-  return `<div class="s${x.id==uid?' mine':''}${t.turn==k&&act?' t':''}${x.f&&t.ph!='wait'?' f':''}${x.w?' win':''}${lz(x)?(el('lz'+hn+x.id)<900?' lose shk':' lose'):''}"${t.turn==k&&act?` style="animation-delay:-${Date.now()%1300}ms"`:''}><b>${E(x.name)}</b>${t.dealer==k?' <span class="db">D</span>':''}<br><span class="num" data-k="s${x.id}" data-v="${x.stack}">${x.stack}</span> Chips${wp(x)}${x.bet?`<br><span class="bt${an('bt'+hn+t.ph+x.id+x.bet)}">● ${x.bet} · ${eur(x.bet)} €</span>`:''}${x.ai?'<br>All-in':''}<br>${cs}${x.w?`<br><span class="wn${an('w'+hn+x.id)}">+${x.w}</span>`:''}${lz(x)?'<span class="stp">LOSER</span>':''}</div>`}).join('');
+  return `<div class="s${x.id==uid?' mine':''}${t.turn==k&&act?' t':''}${x.f&&t.ph!='wait'?' f':''}${x.w?' win':''}${lz(x)?(el('lz'+hn+x.id)<900?' lose shk':' lose'):''}"${t.turn==k&&act?` style="animation-delay:-${Date.now()%1300}ms"`:''}><b>${E(x.name)}</b>${t.dealer==k?' <span class="db">D</span>':''}<br><span class="num" data-f="1" data-k="s${x.id}" data-v="${x.stack}">${eur(x.stack)}</span> €${x.bet?`<br><span class="bt${an('bt'+hn+t.ph+x.id+x.bet)}">● ${eur(x.bet)} €</span>`:''}${x.ai?'<br>All-in':''}<br>${cs}${x.w?`<br><span class="wn${an('w'+hn+x.id)}">+${eur(x.w)} €</span>`:''}${lz(x)?'<span class="stp">LOSER</span>':''}</div>`}).join('');
  const hint=me&&!me.f&&me.h.length&&t.board.length>=3&&t.ph!='wait'?`<div class="mu" style="margin-top:6px">Dein Blatt: <b>${HN[hs(me.h.concat(t.board))/15**5|0]}</b></div>`:'';
  let ctl='';
  if(myTurn){const need=t.cb-me.bet,mx=me.bet+me.stack,mn=Math.min(t.cb+t.mr,mx);raise=Math.max(mn,Math.min(raise||mn,mx));
-  ctl=`<div class="r"><button onclick="go('f')">Fold</button><button class="p" onclick="go('c')">${need>0?'Call '+Math.min(need,me.stack)+' <small>('+eur(Math.min(need,me.stack))+' €)</small>':'Check'}</button></div>
-  ${mx>t.cb?`<div class="r" style="margin-top:8px">${[25,50,75,100].map(p=>{const a=Math.min(mx,Math.max(mn,Math.round((t.cb+p/100*(pot+need))/10)*10));return `<button style="flex:1;padding:8px 4px" onclick="setRaise(${a})">${p}%<br><small class="mu">${a} · ${eur(a)} €</small></button>`}).join('')}</div><input id="rs" type="range" min="${mn}" max="${mx}" step="1" id="rs" value="${raise}" oninput="raise=+this.value;document.getElementById('rl').textContent=raise;document.getElementById('re').textContent='('+eur(raise)+' €)'"><div class="r" style="margin:6px 0">${[25,50,75,100].map(p=>`<button style="flex:1;padding:8px 4px" onclick="pb(${p})">${p}% Pot</button>`).join('')}</div><div class="r sp"><button onclick="go('r',raise)">${t.cb?'Erhöhen auf':'Setzen'} <span id="rl">${raise}</span> <small id="re">(${eur(raise)} €)</small></button><button onclick="go('r',${mx})">All-in ${mx} <small>(${eur(mx)} €)</small></button></div>`:''}`}
+  ctl=`<div class="r"><button onclick="go('f')">Fold</button><button class="p" onclick="go('c')">${need>0?'Call '+eur(Math.min(need,me.stack))+' €':'Check'}</button></div>
+  ${mx>t.cb?`<div class="r" style="margin-top:8px">${[25,50,75,100].map(p=>{const a=Math.min(mx,Math.max(mn,Math.round((t.cb+p/100*(pot+need))/10)*10));return `<button style="flex:1;padding:8px 4px" onclick="setRaise(${a})">${p}%<br><small class="mu">${eur(a)} €</small></button>`}).join('')}</div><input id="rs" type="range" min="${mn}" max="${mx}" step="1" id="rs" value="${raise}" oninput="raise=+this.value;document.getElementById('rl').textContent=eur(raise)"><div class="r" style="margin:6px 0">${[25,50,75,100].map(p=>`<button style="flex:1;padding:8px 4px" onclick="pb(${p})">${p}% Pot</button>`).join('')}</div><div class="r sp"><button onclick="go('r',raise)">${t.cb?'Erhöhen auf':'Setzen'} <span id="rl">${eur(raise)}</span> €</button><button onclick="go('r',${mx})">All-in ${eur(mx)} €</button></div>`:''}`}
  else if(me&&act)ctl=`<span class="mu">${me.f?'Du hast gefoldet.':'Warte auf '+E(t.seats[t.turn]?.name||'')+' …'}</span>`;
  const nh=me&&(t.ph=='show'||t.ph=='wait')?`<button class="p" onclick="nextHand()">${t.ph=='wait'&&!t.deck.length?'Spiel starten':'Nächste Runde'}</button> `:'';
  const rem=t.dl?remain(t):30,pct=Math.min(100,Math.max(0,rem)/.3),ro=t.ph=='show'?t.ro||[]:[],b=[0,1,2,3,4].map(k=>t.board[k]!=null?cd(t.board[k],'b'+(t.hn||0)+'_'+t.board[k],(k<3?k:0)*130,1):ro[k-t.board.length]!=null?cd(ro[k-t.board.length],'g'+(t.hn||0)+'_'+ro[k-t.board.length],(k-t.board.length)*150,1).replace('class="c','class="c gh'):'<i class="c em"></i>').join('');
- return `${ov}<div class="k r sp"><h2>${E(t.name)}</h2><div class="r"><button onclick="rebuy()">Rebuy +1000</button><button onclick="leave()">Verlassen</button></div></div>
- <div class="felt"><div class="mu" style="color:#cde">Pot <span class="num" data-k="pot" data-v="${pot}">${pot}</span> <span style="font-size:.85em">(${eur(pot)} €)</span>${act&&t.dl?` · ⏱ <span id="cd">${Math.max(0,Math.ceil(rem))}</span>s<div class="tb"><i id="tb" class="${rem<10?'lo':''}" style="width:${pct}%"></i></div>`:''}</div>${b}<div style="margin-top:6px;min-height:1.4em">${E(t.msg||'')}</div>${ls.length?`<div style="margin-top:4px">💸 Großer Pot! ${ls.map(x=>E(x.name)).join(', ')} verliert.</div>`:''}</div>
+ return `${ov}<div class="k r sp"><h2>${E(t.name)}</h2><div class="r"><button onclick="rebuy()">Rebuy +${eur(1000)} €</button><button onclick="leave()">Verlassen</button></div></div>
+ <div class="felt"><div class="mu" style="color:#cde">Pot <span class="num" data-f="1" data-k="pot" data-v="${pot}">${eur(pot)}</span> €${act&&t.dl?` · ⏱ <span id="cd">${Math.max(0,Math.ceil(rem))}</span>s<div class="tb"><i id="tb" class="${rem<10?'lo':''}" style="width:${pct}%"></i></div>`:''}</div>${b}<div style="margin-top:6px;min-height:1.4em">${E(t.msg||'')}</div>${ls.length?`<div style="margin-top:4px">💸 Großer Pot! ${ls.map(x=>E(x.name)).join(', ')} verliert.</div>`:''}</div>
  <div class="sg" style="margin-top:10px">${seats}</div>
  <div class="k">${nh}${ctl}${hint}</div>
  <div class="k mu">${(t.log||[]).slice().reverse().map(E).join('<br>')}</div>
  ${chatBox()}
- <p class="mu">Beim Verlassen behältst du deine Chips. Wer mitten in der Runde geht, foldet.</p>`}
+ <p class="mu">Beim Verlassen behältst du dein Guthaben. Wer mitten in der Runde geht, foldet.</p>`}
 function draw(){
  const ae=document.activeElement,keep=ae&&ae.type=='text'&&ae.id?{id:ae.id,v:ae.value,p:ae.selectionStart}:null;
  if(!db)return;if(P===undefined){A.textContent='Lade …';return}
@@ -286,7 +285,7 @@ function start(n){
  db.doc('players/'+uid).onSnapshot(s=>{
   if(!s.exists){P=undefined;db.doc('players/'+uid).set({name:n,chips:1000,rebuys:0,week:wk(),table:null,bank:0});return}
   P=s.data();
-  if(P.kicked){cur=null;err='Du wurdest wegen Inaktivität (30 Sekunden) aus der Lobby entfernt. Deine Chips sind sicher.';upd({kicked:false})}
+  if(P.kicked){cur=null;err='Du wurdest wegen Inaktivität (30 Sekunden) aus der Lobby entfernt. Dein Guthaben ist sicher.';upd({kicked:false})}
   if(SY&&P.week<wk()){chkWeek();return}busy=false;
   draw()});
  db.collection('tables').onSnapshot(s=>{T=s.docs.map(x=>({id:x.id,...x.data()}));TL=true;chkWeek();draw()},e=>{err='Lobbys laden fehlgeschlagen: '+e.message;draw()});
@@ -298,6 +297,6 @@ function start(n){
  P=undefined;draw()}
 try{firebase.initializeApp(FB);db=firebase.firestore();try{db.settings({experimentalAutoDetectLongPolling:true})}catch(e){}
  const n=localStorage.getItem('pkn');
- if(n)start(n);else A.innerHTML='<div class="k"><h1>♠ Freunde-Poker</h1><p>Wie heißt du am Tisch? (Mit diesem Namen behältst du deine Chips.)</p><div class="r"><input type="text" id="nm" maxlength="16" placeholder="Dein Name" style="flex:1"><button class="p" onclick="login()">Los</button></div></div>';
+ if(n)start(n);else A.innerHTML='<div class="k"><h1>♠ Freunde-Poker</h1><p>Wie heißt du am Tisch? (Mit diesem Namen behältst du dein Guthaben.)</p><div class="r"><input type="text" id="nm" maxlength="16" placeholder="Dein Name" style="flex:1"><button class="p" onclick="login()">Los</button></div></div>';
 }catch(e){A.textContent='Fehler: '+e.message}
 </script></body></html>
