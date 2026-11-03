@@ -167,7 +167,7 @@ function leave(){err='';const id=cur;if(!id)return;
   if(s.seats.some(y=>!y.left))tx.set(tref(id),s);else tx.delete(tref(id));
   tx.update(pref(uid),{chips:(p.chips||0)+back,table:null});lg(tx,'leave',uid,back,id);return 1}).then(()=>{cur=null;draw()})}
 function rebuy(){err='';const id=cur;
- TX(async tx=>{const pd=await tx.get(pref(uid));if(!pd.exists)return;const p=pd.data(),rb=(p.rebuys||0)+1;if(rb>MAXRB)throw new Error('Du hast diese Woche schon '+MAXRB+' Rebuys genutzt.');
+ TX(async tx=>{const pd=await tx.get(pref(uid));if(!pd.exists)return;const p=pd.data(),rb=(p.rebuys||0)+1;if(rb>MAXRB)throw new Error('Du hast diese Woche dein Rebuy-Limit ('+MAXRB+') erreicht.');
   const d=id?await tx.get(tref(id)):null;
   if(d&&d.exists){const s=d.data(),i=s.seats.findIndex(x=>x.id==uid&&!x.left);
    if(i>=0){const x=s.seats[i];if(ACT.includes(s.ph)&&!x.f)throw new Error('Rebuy geht erst nach deiner Runde.');x.stack+=1000;tx.set(tref(id),s);tx.update(pref(uid),{rebuys:rb});lg(tx,'rebuy',uid,1000,id);return}}
@@ -207,9 +207,9 @@ function resetP(id){if(RW.has(id))return;RW.add(id);if(id==uid)cur=null;
   tx.set(db.doc('history/'+p.week+'_'+id),{week:p.week,uid:id,name:p.name,profit,chips,rebuys:p.rebuys||0,bank});
   lg(tx,'week',id,chips,p.week+' -> '+wk()+', Profit '+profit+', Rebuys '+(p.rebuys||0));
   tx.update(pref(id),{chips:1000,rebuys:0,week:wk(),table:null,bank})}).then(()=>{RW.delete(id);if(id==uid)draw()})}
-const MAXRB=2;
+const MAXRB=1;
 const rbBtn=()=>(P.rebuys||0)>=MAXRB?`<button disabled>Rebuys aufgebraucht (${MAXRB}/${MAXRB})</button>`:`<button onclick="rebuy()">Rebuy +${eur(1000)} € (${P.rebuys||0}/${MAXRB})</button>`;
-const VER='02.11.-k',RATE=100,eur=n=>(n/RATE).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}),pe=n=>`<span class="${n>=0?'pl':'mi'}">${n>0?'+':''}${eur(n)} €</span>`,tt=p=>(p.bank||0)+pr(p);
+const VER='02.11.-l',RATE=100,eur=n=>(n/RATE).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}),pe=n=>`<span class="${n>=0?'pl':'mi'}">${n>0?'+':''}${eur(n)} €</span>`,tt=p=>(p.bank||0)+pr(p);
 function bil(){const L=PL.map(p=>({n:p.name,v:tt(p)})).sort((a,b)=>b.v-a.v);if(!L.length)return '';
  const C=L.filter(x=>x.v>0).map(x=>({...x})),D=L.filter(x=>x.v<0).map(x=>({n:x.n,v:-x.v})).reverse(),out=[];let i=0,j=0;
  while(i<C.length&&j<D.length){const a=Math.min(C[i].v,D[j].v);out.push(`${E(D[j].n)} → ${E(C[i].n)}: <b>${eur(a)} €</b>`);C[i].v-=a;D[j].v-=a;if(!C[i].v)i++;if(!D[j].v)j++}
