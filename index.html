@@ -154,7 +154,7 @@ function join(id){err='';TX(async tx=>{
  const s=td.data(),p=pd.data(),x=s.seats.find(y=>y.id==uid&&!y.left);
  if(x&&p.table==id)return 1;
  if(p.table&&p.table!=id){const od=await tx.get(tref(p.table));if(od.exists&&od.data().seats.some(y=>y.id==uid&&!y.left))throw new Error('Du sitzt noch an einem anderen Tisch – geh erst dorthin zurück und verlasse ihn.')}
- if((p.chips||0)<=0)throw new Error('Kein Guthaben mehr – hol dir einen Rebuy.');
+ if((p.chips||0)<=0)throw new Error((p.rebuys||0)>=MAXRB?'Kein Guthaben und keine Rebuys mehr – bis zur nächsten Woche.':'Kein Guthaben mehr – hol dir einen Rebuy.');
  s.seats=s.seats.filter(y=>y.id!=uid);
  s.seats.push({id:uid,name:p.name,stack:p.chips,bet:0,tot:0,f:true,ai:false,a:true,h:[],w:0,sc:0});
  tx.set(tref(id),s);tx.update(pref(uid),{chips:0,table:id});lg(tx,'join',uid,p.chips,id);return 1}).then(r=>{if(r){cur=id;draw()}})}
@@ -167,7 +167,7 @@ function leave(){err='';const id=cur;if(!id)return;
   if(s.seats.some(y=>!y.left))tx.set(tref(id),s);else tx.delete(tref(id));
   tx.update(pref(uid),{chips:(p.chips||0)+back,table:null});lg(tx,'leave',uid,back,id);return 1}).then(()=>{cur=null;draw()})}
 function rebuy(){err='';const id=cur;
- TX(async tx=>{const pd=await tx.get(pref(uid));if(!pd.exists)return;const p=pd.data(),rb=(p.rebuys||0)+1;
+ TX(async tx=>{const pd=await tx.get(pref(uid));if(!pd.exists)return;const p=pd.data(),rb=(p.rebuys||0)+1;if(rb>MAXRB)throw new Error('Du hast diese Woche schon '+MAXRB+' Rebuys genutzt.');
   const d=id?await tx.get(tref(id)):null;
   if(d&&d.exists){const s=d.data(),i=s.seats.findIndex(x=>x.id==uid&&!x.left);
    if(i>=0){const x=s.seats[i];if(ACT.includes(s.ph)&&!x.f)throw new Error('Rebuy geht erst nach deiner Runde.');x.stack+=1000;tx.set(tref(id),s);tx.update(pref(uid),{rebuys:rb});lg(tx,'rebuy',uid,1000,id);return}}
@@ -207,7 +207,9 @@ function resetP(id){if(RW.has(id))return;RW.add(id);if(id==uid)cur=null;
   tx.set(db.doc('history/'+p.week+'_'+id),{week:p.week,uid:id,name:p.name,profit,chips,rebuys:p.rebuys||0,bank});
   lg(tx,'week',id,chips,p.week+' -> '+wk()+', Profit '+profit+', Rebuys '+(p.rebuys||0));
   tx.update(pref(id),{chips:1000,rebuys:0,week:wk(),table:null,bank})}).then(()=>{RW.delete(id);if(id==uid)draw()})}
-const VER='02.11.-j',RATE=100,eur=n=>(n/RATE).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}),pe=n=>`<span class="${n>=0?'pl':'mi'}">${n>0?'+':''}${eur(n)} €</span>`,tt=p=>(p.bank||0)+pr(p);
+const MAXRB=2;
+const rbBtn=()=>(P.rebuys||0)>=MAXRB?`<button disabled>Rebuys aufgebraucht (${MAXRB}/${MAXRB})</button>`:`<button onclick="rebuy()">Rebuy +${eur(1000)} € (${P.rebuys||0}/${MAXRB})</button>`;
+const VER='02.11.-k',RATE=100,eur=n=>(n/RATE).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}),pe=n=>`<span class="${n>=0?'pl':'mi'}">${n>0?'+':''}${eur(n)} €</span>`,tt=p=>(p.bank||0)+pr(p);
 function bil(){const L=PL.map(p=>({n:p.name,v:tt(p)})).sort((a,b)=>b.v-a.v);if(!L.length)return '';
  const C=L.filter(x=>x.v>0).map(x=>({...x})),D=L.filter(x=>x.v<0).map(x=>({n:x.n,v:-x.v})).reverse(),out=[];let i=0,j=0;
  while(i<C.length&&j<D.length){const a=Math.min(C[i].v,D[j].v);out.push(`${E(D[j].n)} → ${E(C[i].n)}: <b>${eur(a)} €</b>`);C[i].v-=a;D[j].v-=a;if(!C[i].v)i++;if(!D[j].v)j++}
@@ -245,7 +247,7 @@ function lobby(){
  const rk=[...PL].sort((a,b)=>pr(b)-pr(a)).map((p,i)=>`<tr><td>${i+1}. ${E(p.name)}</td><td>${eur(val(p))} €</td><td>${pe(pr(p))}</td><td>${pe(tt(p))}</td></tr>`).join('');
  return `<div class="k"><h2>Lobbys</h2>${tb||'<span class="mu">Noch keine Lobby – erstelle eine.</span>'}
  <div class="r" style="margin-top:8px"><input type="text" id="tn" placeholder="Name der neuen Lobby" maxlength="20" style="flex:1"><button onclick="mk()">Erstellen</button></div></div>
- <div class="k"><div class="r sp"><h2>Rangliste (Woche)</h2><button onclick="rebuy()">Rebuy +${eur(1000)} €</button></div><table><tr class="mu"><td>Spieler</td><td>Guthaben</td><td>Woche</td><td>Gesamt</td></tr>${rk}</table>${chk()}</div>${bil()}${hist()}${chatBox()}`}
+ <div class="k"><div class="r sp"><h2>Rangliste (Woche)</h2>${rbBtn()}</div><table><tr class="mu"><td>Spieler</td><td>Guthaben</td><td>Woche</td><td>Gesamt</td></tr>${rk}</table>${chk()}</div>${bil()}${hist()}${chatBox()}`}
 function table(t){
  const i=mySeat(t),me=t.seats[i],S=t.seats.filter(x=>!x.left),act=['pre','flop','turn','river'].includes(t.ph);
  const myTurn=act&&me&&t.seats[t.turn]===me;
@@ -262,7 +264,7 @@ function table(t){
  else if(me&&act)ctl=`<span class="mu">${me.f?'Du hast gefoldet.':'Warte auf '+E(t.seats[t.turn]?.name||'')+' …'}</span>`;
  const nh=me&&(t.ph=='show'||t.ph=='wait')?`<button class="p" onclick="nextHand()">${t.ph=='wait'&&!t.deck.length?'Spiel starten':'Nächste Runde'}</button> `:'';
  const rem=t.dl?remain(t):30,pct=Math.min(100,Math.max(0,rem)/.3),ro=t.ph=='show'?t.ro||[]:[],b=[0,1,2,3,4].map(k=>t.board[k]!=null?cd(t.board[k],'b'+(t.hn||0)+'_'+t.board[k],(k<3?k:0)*130,1):ro[k-t.board.length]!=null?cd(ro[k-t.board.length],'g'+(t.hn||0)+'_'+ro[k-t.board.length],(k-t.board.length)*150,1).replace('class="c','class="c gh'):'<i class="c em"></i>').join('');
- return `${ov}<div class="k r sp"><h2>${E(t.name)}</h2><div class="r"><button onclick="rebuy()">Rebuy +${eur(1000)} €</button><button onclick="leave()">Verlassen</button></div></div>
+ return `${ov}<div class="k r sp"><h2>${E(t.name)}</h2><div class="r">${rbBtn()}<button onclick="leave()">Verlassen</button></div></div>
  <div class="felt"><div class="mu" style="color:#cde">Pot <span class="num" data-f="1" data-k="pot" data-v="${pot}">${eur(pot)}</span> €${act&&t.dl?` · ⏱ <span id="cd">${Math.max(0,Math.ceil(rem))}</span>s<div class="tb"><i id="tb" class="${rem<10?'lo':''}" style="width:${pct}%"></i></div>`:''}</div>${b}<div style="margin-top:6px;min-height:1.4em">${E(t.msg||'')}</div>${ls.length?`<div style="margin-top:4px">💸 Großer Pot! ${ls.map(x=>E(x.name)).join(', ')} verliert.</div>`:''}</div>
  <div class="sg" style="margin-top:10px">${seats}</div>
  <div class="k">${nh}${ctl}${hint}</div>
