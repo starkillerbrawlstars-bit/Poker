@@ -222,7 +222,9 @@ function resetP(id){if(RW.has(id))return;RW.add(id);if(id==uid)cur=null;
   tx.update(pref(id),{chips:1000,rebuys:0,week:wk(),table:null,bank})}).then(()=>{RW.delete(id);if(id==uid)draw()})}
 const MAXRB=1;
 const rbBtn=()=>(P.rebuys||0)>=MAXRB?`<button disabled>Rebuys aufgebraucht (${MAXRB}/${MAXRB})</button>`:`<button onclick="rebuy()">Rebuy +${eur(1000)} € (${P.rebuys||0}/${MAXRB})</button>`;
-const VER='02.11.-l',RATE=100,eur=n=>(n/RATE).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}),pe=n=>`<span class="${n>=0?'pl':'mi'}">${n>0?'+':''}${eur(n)} €</span>`,tt=p=>(p.bank||0)+pr(p);
+const VER='16.11.-m',RATE=100,eur=n=>(n/RATE).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}),pe=n=>`<span class="${n>=0?'pl':'mi'}">${n>0?'+':''}${eur(n)} €</span>`,tt=p=>(p.bank||0)+(LG[p.id]||0)+pr(p);
+/* Wochen vor Einführung von 'bank' (KW44) wurden nie in die Gesamtbilanz übernommen – hier nachträglich addieren */
+let LG={};
 function bil(){const L=PL.map(p=>({n:p.name,v:tt(p)})).sort((a,b)=>b.v-a.v);if(!L.length)return '';
  const C=L.filter(x=>x.v>0).map(x=>({...x})),D=L.filter(x=>x.v<0).map(x=>({n:x.n,v:-x.v})).reverse(),out=[];let i=0,j=0;
  while(i<C.length&&j<D.length){const a=Math.min(C[i].v,D[j].v);out.push(`${E(D[j].n)} → ${E(C[i].n)}: <b>${eur(a)} €</b>`);C[i].v-=a;D[j].v-=a;if(!C[i].v)i++;if(!D[j].v)j++}
@@ -357,6 +359,7 @@ function start(n){
   draw()});
  db.collection('tables').onSnapshot(s=>{T=s.docs.map(x=>({id:x.id,...x.data()}));TL=true;chkWeek();draw()},e=>{err='Lobbys laden fehlgeschlagen: '+e.message;draw()});
  db.collection('players').onSnapshot(s=>{PL=s.docs.map(x=>({id:x.id,...x.data()}));chkWeek();draw()},e=>{err='Rangliste laden fehlgeschlagen: '+e.message;draw()});
+ db.collection('history').where('week','<','2026-KW45').onSnapshot(s=>{LG={};s.docs.forEach(d=>{const h=d.data();if(h.bank==null)LG[h.uid]=(LG[h.uid]||0)+(h.profit||0)});draw()},e=>{});
  db.collection('history').orderBy('week','desc').limit(40).onSnapshot(s=>{HI=s.docs.map(x=>x.data());draw()},e=>{});
  db.collection('chat').orderBy('ts','desc').limit(50).onSnapshot(s=>{CH=s.docs.map(x=>x.data()).reverse();drawChat()},e=>{err='Chat laden fehlgeschlagen: '+e.message;draw()});
  db.collection('pings').orderBy('ts','desc').limit(5).onSnapshot(s=>s.docChanges().forEach(c=>{if(c.type=='added')onPing(c.doc)}),e=>{});
