@@ -158,8 +158,11 @@ function go(t,a){err='';const id=cur;TX(async tx=>{const d=await tx.get(tref(id)
 function setRaise(a){raise=a;const r=document.getElementById('rs'),l=document.getElementById('rl');if(r)r.value=a;if(l)l.textContent=eur(a)}
 function nextHand(){err='';const id=cur;TX(async tx=>{const d=await tx.get(tref(id));if(!d.exists)return;const s=d.data();
  if(s.ph!='show'&&s.ph!='wait')return;startHand(s);tx.set(tref(id),s)})}
-async function setName(){const n=document.getElementById('nm').value.trim().slice(0,16);if(!n)return;
- await db.doc('players/'+uid).set({name:n,chips:1000,rebuys:0,week:wk(),table:null,bank:0})}
+/* Spieler nur anlegen, wenn er auf dem Server wirklich nicht existiert – niemals bestehende Daten überschreiben */
+let creating=false;
+function createP(n){if(creating)return;creating=true;
+ db.runTransaction(async tx=>{const d=await tx.get(pref(uid));if(!d.exists)tx.set(pref(uid),{name:n,chips:1000,rebuys:0,week:wk(),table:null,bank:0})})
+  .catch(e=>{err=e.message;draw()}).finally(()=>{creating=false})}
 async function mk(){const n=document.getElementById('tn').value.trim().slice(0,20);if(!n)return;
  const id='T'+Date.now().toString(36);await db.doc('tables/'+id).set({name:n,seats:[],ph:'wait',dealer:-1,turn:0,cb:0,mr:20,deck:[],board:[],log:[],msg:'Warte auf Mitspieler …',rv:false});join(id)}
 function join(id){err='';TX(async tx=>{
@@ -222,7 +225,7 @@ function resetP(id){if(RW.has(id))return;RW.add(id);if(id==uid)cur=null;
   tx.update(pref(id),{chips:1000,rebuys:0,week:wk(),table:null,bank})}).then(()=>{RW.delete(id);if(id==uid)draw()})}
 const MAXRB=1;
 const rbBtn=()=>(P.rebuys||0)>=MAXRB?`<button disabled>Rebuys aufgebraucht (${MAXRB}/${MAXRB})</button>`:`<button onclick="rebuy()">Rebuy +${eur(1000)} € (${P.rebuys||0}/${MAXRB})</button>`;
-const VER='16.11.-m',RATE=100,eur=n=>(n/RATE).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}),pe=n=>`<span class="${n>=0?'pl':'mi'}">${n>0?'+':''}${eur(n)} €</span>`,tt=p=>(p.bank||0)+(LG[p.id]||0)+pr(p);
+const VER='17.11.-n',RATE=100,eur=n=>(n/RATE).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}),pe=n=>`<span class="${n>=0?'pl':'mi'}">${n>0?'+':''}${eur(n)} €</span>`,tt=p=>(p.bank||0)+(LG[p.id]||0)+pr(p);
 /* Wochen vor Einführung von 'bank' (KW44) wurden nie in die Gesamtbilanz übernommen – hier nachträglich addieren */
 let LG={};
 function bil(){const L=PL.map(p=>({n:p.name,v:tt(p)})).sort((a,b)=>b.v-a.v);if(!L.length)return '';
@@ -352,7 +355,7 @@ function login(){const n=document.getElementById('nm').value.trim().slice(0,16);
 function start(n){
  uid=n.toLowerCase().replace(/[^a-z0-9]/g,'_')||'x';
  db.doc('players/'+uid).onSnapshot(s=>{
-  if(!s.exists){P=undefined;db.doc('players/'+uid).set({name:n,chips:1000,rebuys:0,week:wk(),table:null,bank:0});return}
+  if(!s.exists){P=undefined;if(!s.metadata.fromCache)createP(n);draw();return}
   P=s.data();
   if(P.kicked){cur=null;err='Du wurdest wegen Inaktivität (30 Sekunden) aus der Lobby entfernt. Dein Guthaben ist sicher.';upd({kicked:false})}
   if(SY&&P.week<wk()){chkWeek();return}busy=false;
