@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fairness-Auswertung des Hand-Protokolls (Firestore-Sammlung 'hands').
 
-Aufruf:  python3 tools/auswertung.py [spieler-id]   (Standard: silence)
+Aufruf:  python3 tools/auswertung.py            (alle Spieler)
 
 Pro Spieler:
   - Hände, durchschnittliche Starthand-Stärke (Chen-Formel), Anteil Premium-Hände
@@ -14,7 +14,6 @@ from collections import defaultdict
 
 KEY = "AIzaSyA92pxNNy2tuRjz5ApFTK2hupYIqxRB3WA"
 BASE = "https://firestore.googleapis.com/v1/projects/poker-34e6f/databases/(default)/documents"
-FOCUS = (sys.argv[1] if len(sys.argv) > 1 else "silence").lower()
 
 
 def val(x):
@@ -93,21 +92,19 @@ def main():
     n_all = sum(s["n"] for s in S.values())
     avg_all = sum(s["chen"] for s in S.values()) / n_all
     print(f"{len(H)} Hände protokolliert · Ø Starthand aller Spieler (Chen): {avg_all:.2f}\n")
-    print(f"{'Spieler':14} {'Hände':>5} {'ØChen':>6} {'Premium':>8} {'selbst gemischt':>16} {'ØChen dabei':>11} {'Showdown-Siege':>15} {'Netto':>9}")
+    # Abweichung in Standardfehlern (Chen-Streuung zufälliger Hände ≈ 3,1); ab ±3 verdächtig
+    zz = lambda tot, n: (tot / n - avg_all) / (3.1 / math.sqrt(n)) if n else 0
+    print(f"{'Spieler':14} {'Hände':>5} {'ØChen':>6} {'Abw.':>6} {'Premium':>8} {'selbst gemischt':>16} {'ØChen dabei':>11} {'Abw.':>6} {'Showdown-Siege':>15} {'Netto':>9}")
     for u, s in sorted(S.items(), key=lambda kv: -kv[1]["n"]):
         if not s["n"]:
             continue
         sd = f"{int(s['sdw'])}/{int(s['sd'])}" if s["sd"] else "-"
         sch = f"{s['schen'] / s['sn']:.2f}" if s["sn"] else "-"
-        mark = "  ◀" if u == FOCUS else ""
-        print(f"{u:14} {int(s['n']):5} {s['chen'] / s['n']:6.2f} {s['prem'] / s['n']:7.0%} {int(s['dealt']):16} {sch:>11} {sd:>15} {s['net'] / 100:+8.2f}€{mark}")
-
-    f = S.get(FOCUS)
-    if f and f["n"]:
-        # Abweichung des Ø-Chen-Werts in Standardfehlern (Chen-Streuung zufälliger Hände ≈ 3,1)
-        z = (f["chen"] / f["n"] - avg_all) / (3.1 / math.sqrt(f["n"]))
-        print(f"\n{FOCUS}: Starthände {z:+.1f} Standardabweichungen vom Schnitt "
-              f"({'auffällig' if abs(z) >= 3 else 'unauffällig'}; ab ±3 wird es verdächtig, aussagekräftig erst ab ~200 Händen)")
+        z, zs = zz(s["chen"], s["n"]), zz(s["schen"], s["sn"])
+        if z >= 3 or zs >= 3:
+            alerts.append(f"{u}: auffällig gute Starthände (Abw. {z:+.1f}, selbst gemischt {zs:+.1f})")
+        print(f"{u:14} {int(s['n']):5} {s['chen'] / s['n']:6.2f} {z:+6.1f} {s['prem'] / s['n']:7.0%} {int(s['dealt']):16} {sch:>11} {zs:+6.1f} {sd:>15} {s['net'] / 100:+8.2f}€")
+    print("\nAbw. = Abweichung vom Schnitt in Standardfehlern: ±2 ist normales Glück, ab +3 verdächtig. Aussagekräftig ab ~200 Händen pro Spieler.")
     print("\nAuffälligkeiten:" if alerts else "\nKeine Manipulationsspuren gefunden.")
     for a in alerts:
         print("  " + a)
